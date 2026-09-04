@@ -1,0 +1,15 @@
+{
+  "name": "review-llm",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "He thong on tap chu dong 120 cau hoi AI Engineering (spaced repetition + LLM grading)",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.70.0",
+    "openai": "^7.10.0"
+  }
+}

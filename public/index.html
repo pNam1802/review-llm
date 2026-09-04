@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="vi" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ôn tập AI Engineering — 120 câu</title>
+<meta name="description" content="Hệ thống ôn tập chủ động 120 câu hỏi AI Engineering: nhớ lại chủ động, lặp lại ngắt quãng, chấm tự luận theo rubric.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧠</text></svg>">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<a class="skip" href="#main">Bỏ qua tới nội dung</a>
+
+<div id="app" class="app">
+  <aside class="nav" id="nav">
+    <div class="nav__brand">
+      <span class="nav__logo">🧠</span>
+      <span class="nav__title">Ôn tập <b>AI Engineering</b></span>
+    </div>
+    <nav class="nav__links" id="navLinks"></nav>
+    <div class="nav__foot">
+      <button class="btn btn--ghost btn--sm" id="themeBtn" title="Đổi giao diện sáng/tối (phím T)">
+        <span class="ico" aria-hidden="true">◐</span><span>Giao diện</span>
+      </button>
+      <div class="nav__status" id="apiStatus"></div>
+    </div>
+  </aside>
+
+  <main class="main" id="main" tabindex="-1"></main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<dialog class="modal" id="modal">
+  <div class="modal__body" id="modalBody"></div>
+</dialog>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
