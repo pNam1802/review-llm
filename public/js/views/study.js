@@ -2,6 +2,8 @@ import { state, getCard, setCard, save, logAttempt, gradeAnswer, askCoach } from
 import {
   buildQueue, review, previewIntervals, localGrade, scoreFromPoints, ratingFromScore, interleave,
 } from '../srs.js';
+import { recordGrade, pendingDrills, buildDrill } from '../drills.js';
+import { renderDrillCard } from './drill.js';
 import { md } from '../md.js';
 import { scoreRing, esc, toast, relTime, fmtDuration } from '../ui.js';
 
@@ -65,10 +67,55 @@ export function renderStudy(go, opts = {}) {
   let hintLevel = 0;
   let chat = [];
 
+  // hàng đợi bài luyện của phiên hiện tại
+  let activeDrills = [];
+  let currentDrill = null;
+  let drillPhase = 'now';
+  let drillTotal = 0;
+  let afterDrills = null;
+
   const current = () => session.queue[session.index];
+
+  /** Chạy một loạt bài luyện rồi gọi tiếp `then`. */
+  function startDrills(list, phase, then) {
+    activeDrills = [...list];
+    drillPhase = phase;
+    drillTotal = list.length;
+    afterDrills = then;
+    nextDrill();
+  }
+
+  function nextDrill() {
+    if (!activeDrills.length) {
+      currentDrill = null;
+      step = 'predict';
+      const done = afterDrills;
+      afterDrills = null;
+      questionStart = Date.now();
+      return done ? done() : paint();
+    }
+    const item = activeDrills.shift();
+    const q = state.byId.get(item.qid);
+    currentDrill = q ? buildDrill(q, item.pid, state.questions) : null;
+    if (!currentDrill) return nextDrill();
+    step = 'drill';
+    paint();
+  }
 
   function paint() {
     root.innerHTML = '';
+    if (step === 'drill' && currentDrill) {
+      return root.append(renderDrillCard(currentDrill, {
+        phase: drillPhase,
+        index: drillTotal - activeDrills.length,
+        total: drillTotal,
+        onDone: nextDrill,
+        onSkip: () => {
+          activeDrills = [];
+          nextDrill();
+        },
+      }));
+    }
     if (!session.queue.length) return root.append(emptyState(go, opts));
     if (session.index >= session.queue.length) return root.append(summary());
     root.append(card());
@@ -413,8 +460,14 @@ export function renderStudy(go, opts = {}) {
       offline: grade?.offline,
     });
     session.results.push({ q, score: grade?.overall ?? 0, rating });
+
+    // Ghi nhận kết quả TỪNG Ý và xếp lịch luyện cho ý còn hụt
+    if (grade?.points) recordGrade(q, grade.points, grade.overall ?? 0);
     save();
     toast(`Ôn lại ${relTime(updated.due)}`, 1500);
+
+    const ngay = pendingDrills('now').filter((d) => d.qid === q.id);
+    if (ngay.length && session.mode !== 'exam') return startDrills(ngay, 'now', next);
     next();
   }
 
@@ -426,7 +479,14 @@ export function renderStudy(go, opts = {}) {
     hintLevel = 0;
     chat = [];
     questionStart = Date.now();
-    if (session.index >= session.queue.length && session.mode === 'exam') return finishExam();
+    if (session.index >= session.queue.length) {
+      if (session.mode === 'exam') return finishExam();
+      const cuoiBuoi = [...pendingDrills('session'), ...pendingDrills('now')];
+      if (cuoiBuoi.length && !session.cooldownDone) {
+        session.cooldownDone = true;
+        return startDrills(cuoiBuoi, 'session', paint);
+      }
+    }
     paint();
   }
 
@@ -451,6 +511,7 @@ export function renderStudy(go, opts = {}) {
       updated.lastScore = g.overall;
       setCard(updated);
       logAttempt({ questionId: r.q.id, score: g.overall, rating, seconds: r.seconds, confidence: r.confidence, isNew, offline: g.offline });
+      if (g.points) recordGrade(r.q, g.points, g.overall);
     }
     save({ immediate: true });
     session.examResults = graded;
@@ -512,7 +573,13 @@ export function renderStudy(go, opts = {}) {
     return d;
   }
 
-  paint();
+  // Mở màn bằng những ý còn hụt từ buổi trước (nhịp thứ ba của lịch luyện)
+  const khoiDong = session.mode === 'exam'
+    ? []
+    : [...pendingDrills('next'), ...pendingDrills('now')];
+  if (khoiDong.length) startDrills(khoiDong, 'next', paint);
+  else paint();
+
   return root;
 }
 

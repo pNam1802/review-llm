@@ -162,6 +162,25 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    if (p === '/api/drill-grade' && req.method === 'POST') {
+      const { questionId, pointId, mode, answer } = await readBody(req);
+      const q = byId.get(questionId);
+      if (!q) return sendJSON(res, 404, { code: 'not_found', message: 'Không tìm thấy câu hỏi.' });
+      const point = q.points.find((pt, i) => (pt.id || 'p' + (i + 1)) === pointId) || null;
+      if (!point && mode !== 'skeleton') {
+        return sendJSON(res, 404, { code: 'not_found', message: 'Không tìm thấy ý này.' });
+      }
+      if (!answer || !answer.trim()) {
+        return sendJSON(res, 200, { score: 0, ok: false, matched: [], feedback: 'Bạn để trống. Cứ viết những gì nhớ được, dù một cụm từ.', hint: '' });
+      }
+      try {
+        return sendJSON(res, 200, await llm.gradeDrill(q, point, mode || 'point', answer));
+      } catch (err) {
+        const payload = llm.errorPayload(err);
+        return sendJSON(res, isSetupError(payload.code) ? 503 : 502, payload);
+      }
+    }
+
     if (p === '/api/coach' && req.method === 'POST') {
       const { questionId, question, history } = await readBody(req);
       const q = byId.get(questionId);

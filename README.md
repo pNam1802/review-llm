@@ -56,6 +56,27 @@ Nếu chấm lỗi (sai key, hết quota, mất mạng), hệ thống **tự chu
 
 Bạn có thể **bấm vào từng ý trong rubric để tự sửa đánh giá** — điểm được tính lại ngay. Máy chấm chỉ là gợi ý; người học mới là trọng tài cuối cùng.
 
+## Luyện lại ý còn hụt
+
+Dưới **80 điểm** (hoặc khi một ý bị hụt từ 2 lần trở lên) thì sau khi đánh giá sẽ có một bài luyện nhỏ ~30 giây.
+
+Nguyên tắc: với câu tự luận dài, đích đến **không phải thuộc lòng** mà là dựng lại được **khung xương** — và khung đó chính là mảng `points` trong rubric. Nên bài luyện:
+
+- **chỉ nhắm đúng ý bị hụt**, không bắt viết lại cả bài;
+- **bớt giàn giáo dần** sau mỗi lần gặp lại cùng một ý:
+
+  | Lần | Kiểu bài | Việc phải làm | Cần LLM |
+  |---|---|---|---|
+  | 1 | Nhận ra ý đúng | chọn ý đúng, lẫn giữa ý của câu khác cùng chủ đề | không |
+  | 2 | Điền từ chịu lực | điền thuật ngữ bị che (`context`, `top-k`, `max_steps`…) | không |
+  | 3 | Tự viết lại một ý | viết đủ ý đó bằng lời của bạn, 1–2 câu | có, ~500 token |
+  | 4+ | Giảng lại cho người mới | giải thích 2 câu + một ví dụ của riêng bạn | có |
+
+- **rải theo ba nhịp**: ngay sau khi chấm → cuối buổi (cách ~6 phút) → buổi sau. Chưa đạt thì gặp lại trong cùng buổi, đạt rồi mới được đẩy sang nhịp xa hơn;
+- câu dài (từ 5 ý trở lên) mà hụt từ 2 ý sẽ có thêm bài **“dựng lại khung xương”**: gọi tên đủ N ý bằng 3–5 từ, chưa cần viết đầy đủ.
+
+Hệ thống theo dõi **từng ý một** (`pointStats`), nên trang Tiến độ trả lời được câu hỏi hữu ích hơn điểm số: *bạn hay bỏ sót loại ý nào* — “cách khắc phục”, “đánh đổi/chi phí”, “phân biệt/ranh giới”… Đó là thói quen tư duy, sửa một lần thì đúng cho cả trăm câu.
+
 ### Các chế độ
 
 | Chế độ | Dùng khi |
@@ -65,6 +86,7 @@ Bạn có thể **bấm vào từng ý trong rubric để tự sửa đánh giá
 | **Thi thử** | Làm liền N câu, không xem đáp án giữa chừng, chấm và báo cáo ở cuối |
 | **Thư viện** | Tra cứu, đọc lại, hoặc tự kiểm tra một câu bất kỳ |
 | **Luyện câu hay quên** | Ở trang Tiến độ: gom riêng những câu bạn quên nhiều lần |
+| **Bài luyện nhỏ** | Tự bật khi điểm dưới 80 — xem mục bên dưới |
 
 ### Phím tắt
 
@@ -102,9 +124,10 @@ public/
     app.js                  định tuyến + phím tắt + giao diện
     store.js                trạng thái, lưu trữ, gọi API
     srs.js                  lịch lặp lại ngắt quãng + chấm nháp offline
+    drills.js               bài luyện theo từng ý: bậc thang, ba nhịp, phân loại ý
     metrics.js              số liệu tiến độ
     md.js  ui.js            markdown + tiện ích, biểu đồ SVG
-    views/                  home · study · library · stats · settings
+    views/                  home · study · drill · library · stats · settings
 data/progress.json          tiến độ học của bạn (đã gitignore)
 ```
 
@@ -146,6 +169,7 @@ Vào **Cài đặt → Tải file sao lưu** để xuất JSON, hoặc copy tr�
 | `GET /api/health` | có API key chưa, model nào |
 | `GET/PUT /api/state` | đọc / ghi tiến độ |
 | `POST /api/grade` | chấm một câu theo rubric (`{questionId, answer}`) |
+| `POST /api/drill-grade` | chấm một bài luyện nhỏ (`{questionId, pointId, mode, answer}`) |
 | `POST /api/coach` | hỏi thêm về một câu (`{questionId, question, history}`) |
 
 Khóa API chỉ nằm ở phía server (`.env` → `llm.mjs`), **không bao giờ đi ra trình duyệt**.

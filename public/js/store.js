@@ -26,6 +26,8 @@ const defaults = () => ({
   days: {},                // 'YYYY-MM-DD' -> { reviews, correct, minutes, newCards }
   attempts: [],            // lịch sử làm bài (rút gọn), dùng cho thống kê & hiệu chỉnh
   streak: { current: 0, best: 0, last: null },
+  pointStats: {},          // 'câu:ý' -> { h, p, m, last, t, d } - theo dõi từng Ý một
+  drills: [],              // hàng đợi bài luyện: { qid, pid, stage, due, tries }
 });
 
 /* ------------------------------------------------------------------ nạp */
@@ -60,6 +62,8 @@ function migrate(d) {
   out.days = d.days || {};
   out.attempts = d.attempts || [];
   out.streak = { ...base.streak, ...(d.streak || {}) };
+  out.pointStats = d.pointStats || {};
+  out.drills = d.drills || [];
   return out;
 }
 
@@ -150,6 +154,17 @@ export async function gradeAnswer(questionId, answer) {
   });
   const body = await res.json();
   if (!res.ok) throw Object.assign(new Error(body.message || 'Lỗi chấm bài'), { code: body.code });
+  return body;
+}
+
+export async function gradeDrillAnswer(questionId, pointId, mode, answer) {
+  const res = await fetch('/api/drill-grade', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ questionId, pointId, mode, answer }),
+  });
+  const body = await res.json();
+  if (!res.ok) throw Object.assign(new Error(body.message || 'Lỗi chấm bài luyện'), { code: body.code });
   return body;
 }
 

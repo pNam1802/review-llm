@@ -1,12 +1,15 @@
 import { state } from '../store.js';
 import { overview, topicProgress, weakSpots, calibration } from '../metrics.js';
 import { heatmap, forecast, masteryBar, pct, esc, fmtDuration } from '../ui.js';
+import { missedKinds, pidOf, classifyPoint } from '../drills.js';
 
 export function renderStats(go) {
   const o = overview();
   const topics = topicProgress();
   const weak = weakSpots();
   const cal = calibration();
+  const kinds = missedKinds(state.questions);
+  const soY = (state.data.drills || []).length;
   const totalSeconds = Object.values(state.data.days).reduce((s, d) => s + (d.seconds || 0), 0);
   const totalReviews = Object.values(state.data.days).reduce((s, d) => s + (d.reviews || 0), 0);
 
@@ -82,6 +85,47 @@ export function renderStats(go) {
             ? '<b>Bạn đánh giá thấp bản thân.</b> Hãy mạnh dạn viết ra thay vì bấm “chịu” — bạn nhớ nhiều hơn mình nghĩ.'
             : '<b>Khả năng tự đánh giá của bạn khá chuẩn.</b> Đây là dấu hiệu tốt: bạn biết mình đang nắm gì và thiếu gì.'}
       </p>
+    </section>` : ''}
+
+    ${kinds.length ? `
+    <section class="card" style="margin-top:16px">
+      <div class="card__title">Bạn hay bỏ sót loại ý nào?
+        <span class="tiny muted" style="font-weight:400">— thói quen tư duy, sửa một lần đúng cho cả trăm câu</span></div>
+      ${kinds.slice(0, 6).map((k) => `
+        <div class="topic-row" style="cursor:default">
+          <span class="grow"><span class="topic-row__name">${esc(k.label)}</span>
+            <span class="topic-row__meta"> · gặp ${k.seen} lượt</span></span>
+          <span class="topic-row__bar">
+            <div class="bar"><div class="bar__fill" style="width:${Math.max(3, pct(k.rate))}%;background:${k.rate > 0.4 ? 'var(--bad)' : k.rate > 0.2 ? 'var(--warn)' : 'var(--good)'}"></div></div>
+          </span>
+          <span class="tiny muted" style="width:52px;text-align:right">hụt ${pct(k.rate)}%</span>
+        </div>`).join('')}
+      <div class="callout callout--why" style="margin-top:12px">
+        <div class="callout__label">Đọc bảng này thế nào</div>
+        Nhóm ở trên cùng là loại ý bạn hay quên nhất. Lần sau khi trả lời bất kỳ câu nào, hãy tự hỏi thêm một nhịp:
+        <i>“${esc(kinds[0].label.toLowerCase())} — mình đã nói chưa?”</i> Chỉ một câu tự hỏi đó thường kéo điểm lên đáng kể.
+      </div>
+    </section>` : ''}
+
+    ${soY ? `
+    <section class="card" style="margin-top:16px">
+      <div class="card__title">Ý đang luyện dở <span class="tiny muted" style="font-weight:400">— ${soY} ý trong hàng đợi</span></div>
+      ${(state.data.drills || []).slice(0, 8).map((d) => {
+        const q = state.byId.get(d.qid);
+        if (!q) return '';
+        const i = q.points.findIndex((pt, n) => pidOf(pt, n) === d.pid);
+        const pt = q.points[i];
+        const nhip = { now: 'luyện ngay', session: 'cuối buổi', next: 'buổi sau' }[d.stage] || d.stage;
+        return `<button class="qrow" data-id="${q.id}">
+          <span class="qrow__id">${q.id}</span>
+          <span class="grow">
+            <span class="qrow__q">${pt ? esc(pt.text) : 'Khung xương cả câu'}</span>
+            <span class="qrow__meta"><span class="badge">${esc(q.topicName)}</span>
+              <span class="badge badge--accent">${nhip}</span>
+              ${pt ? `<span class="badge">${esc(classifyPoint(pt.text).label)}</span>` : ''}</span>
+          </span>
+        </button>`;
+      }).join('')}
     </section>` : ''}
 
     ${weak.length ? `

@@ -164,8 +164,8 @@ export function interleave(items) {
  * Chỉ dùng để GỢI Ý cho người học tự chấm, không thay được chấm ngữ nghĩa.
  * ------------------------------------------------------------------ */
 
-const STOP = new Set(`và của là các một những cho khi thì mà với được có không nên phải trong ra vào từ đến này đó nếu vì do như hoặc hay cũng chỉ rất nhiều ít theo về trên dưới sau trước bằng để nêu được nói cần tại sao gì nào đâu bao nhiêu hãy ví dụ vd tức chính đang sẽ đã bị bởi nhưng còn nữa vẫn ai
-the and for with that this from you your are was not but can will has have how what when why which where all any our its into out over under more less than then them they` .split(/\s+/));
+const STOP_RAW = `và của là các một những cho khi thì mà với được có không nên phải trong ra vào từ đến này đó nếu vì do như hoặc hay cũng chỉ rất nhiều ít theo về trên dưới sau trước bằng để nêu được nói cần tại sao gì nào đâu bao nhiêu hãy ví dụ vd tức chính đang sẽ đã bị bởi nhưng còn nữa vẫn ai
+the and for with that this from you your are was not but can will has have how what when why which where all any our its into out over under more less than then them they`;
 
 export function normalize(s) {
   return String(s || '')
@@ -177,6 +177,9 @@ export function normalize(s) {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+// Tra cứu bằng chuỗi đã bỏ dấu, nên tập từ dừng cũng phải bỏ dấu theo.
+const STOP = new Set(normalize(STOP_RAW).split(' '));
 
 const keywords = (text) => {
   const words = normalize(text).split(' ').filter((w) => w.length > 2 && !STOP.has(w));

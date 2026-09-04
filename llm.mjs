@@ -133,6 +133,47 @@ Neu hoc vien hoi lac de, tra loi ngan roi keo ve trong tam.
 Uu tien giai thich CO CHE ("vi sao no hoat dong nhu vay") thay vi liet ke dinh nghia.
 Dung markdown don gian (dam, gach dau dong, code inline).`;
 
+/* ------------------------------------------------ chấm bài luyện (drill) */
+export const DRILL_SCHEMA = {
+  type: 'object',
+  properties: {
+    score: { type: 'integer', description: 'Diem 0-100 cho rieng y nay' },
+    ok: { type: 'boolean', description: 'Da neu duoc y chinh hay chua' },
+    feedback: { type: 'string', description: 'Nhan xet 1-2 cau bang tieng Viet, chi ro thieu gi' },
+    hint: { type: 'string', description: 'Mot goi y ngan giup lan sau nho ra y nay, hoac chuoi rong' },
+  },
+  required: ['score', 'ok', 'feedback', 'hint'],
+  additionalProperties: false,
+};
+
+export const SKELETON_SCHEMA = {
+  type: 'object',
+  properties: {
+    matched: { type: 'array', description: 'Danh sach id cac y ma hoc vien da goi ten duoc', items: { type: 'string' } },
+    score: { type: 'integer', description: 'Diem 0-100 theo ti le y goi ten duoc' },
+    feedback: { type: 'string', description: 'Nhan xet 1-2 cau bang tieng Viet' },
+    hint: { type: 'string', description: 'Goi y ngan de nho khung bai nay, hoac chuoi rong' },
+  },
+  required: ['matched', 'score', 'feedback', 'hint'],
+  additionalProperties: false,
+};
+
+const DRILL_SYSTEM = `Ban cham mot BAI LUYEN NHO bang TIENG VIET. Hoc vien chi dang luyen MOT y nho, khong phai ca cau tra loi.
+
+NGUYEN TAC:
+1. Cham theo NGU NGHIA, khong theo cau chu. Dung tu dong nghia / tieng Anh / viet tat quen thuoc van tinh la dung.
+2. Vi day la bai luyen nho, hay ROI RAI: neu hoc vien nam duoc y chinh thi ok = true, du dien dat vung ve hay thieu chi tiet phu.
+3. ok = false chi khi hoc vien khong neu duoc y, hoac hieu SAI ban chat.
+4. feedback ngan gon, khich le, chi ro con thieu gi. Khong giang giai dai dong.
+5. hint: mot meo ngan de lan sau nho ra y nay (mot hinh anh, mot tu khoa neo). De chuoi rong neu khong can.
+6. Bo trong / vo nghia => score 0, ok false.`;
+
+const DRILL_MODE_INSTRUCTION = {
+  point: 'Hoc vien duoc yeu cau viet lai DUNG MOT y trong dap an bang loi cua minh.',
+  teach: 'Hoc vien duoc yeu cau giai thich y nay cho nguoi moi vao nghe, kem mot vi du cua rieng ho. Cham them ve do de hieu va do dung cua vi du.',
+  skeleton: 'Hoc vien duoc yeu cau goi ten TAT CA cac y cua cau hoi bang cum tu ngan (khong can viet day du). Chi can goi dung ten/chu de cua y la tinh la matched, khong doi giai thich.',
+};
+
 function buildGradePrompt(q, userAnswer) {
   const rubric = q.points.map((p, i) => `[${p.id || 'p' + (i + 1)}] (trong so ${p.w || 1}) ${p.text}`).join('\n');
   return `## Cau hoi
@@ -284,6 +325,65 @@ async function anthropicCoach(system, messages) {
     { beta: false, body: {} },
   ]);
   return textOf(res);
+}
+
+/* ----------------------------------------------------- chấm bài luyện nhỏ */
+function buildDrillPrompt(q, point, mode, answer) {
+  const head = `## Cau hoi goc\n${q.q}\n\n## Kieu bai luyen\n${DRILL_MODE_INSTRUCTION[mode] || DRILL_MODE_INSTRUCTION.point}`;
+  if (mode === 'skeleton') {
+    const list = q.points.map((p, i) => `[${p.id || 'p' + (i + 1)}] ${p.text}`).join('\n');
+    return `${head}\n\n## Cac y cua dap an (dap an chuan)\n${list}\n\n## Hoc vien goi ten cac y\n<bai_lam>\n${answer}\n</bai_lam>\n\nTra ve JSON. "matched" chi chua id cua nhung y hoc vien goi ten duoc (du chi bang vai tu). score = ti le matched tren ${q.points.length} y, thang 100.`;
+  }
+  return `${head}\n\n## Y dang luyen (dap an chuan cho rieng y nay)\n${point.text}\n\n## Bai lam cua hoc vien\n<bai_lam>\n${answer}\n</bai_lam>\n\nCham rieng y nay. Tra ve JSON dung schema.`;
+}
+
+async function openaiJSON(system, prompt, schema, name) {
+  const c = await getClient();
+  const model = await resolveModel();
+  const messages = [{ role: 'system', content: system }, { role: 'user', content: prompt }];
+  const res = await ladder([
+    () => c.chat.completions.create({
+      model, messages,
+      response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
+    }),
+    () => c.chat.completions.create({
+      model,
+      messages: [{ role: 'system', content: system + '\n\nCHI tra ve MOT object JSON dung schema:\n' + JSON.stringify(schema) }, messages[1]],
+      response_format: { type: 'json_object' },
+    }),
+    () => c.chat.completions.create({
+      model,
+      messages: [{ role: 'system', content: system + '\n\nCHI tra ve MOT object JSON dung schema, khong them chu nao khac:\n' + JSON.stringify(schema) }, messages[1]],
+    }),
+  ]);
+  const out = extractJSON(res.choices?.[0]?.message?.content ?? '');
+  out.usage = { input: res.usage?.prompt_tokens ?? 0, output: res.usage?.completion_tokens ?? 0, model: res.model || model };
+  return out;
+}
+
+async function anthropicJSON(system, prompt, schema) {
+  const model = await resolveModel();
+  const base = { model, max_tokens: 2000, system, messages: [{ role: 'user', content: prompt }] };
+  const format = { type: 'json_schema', schema };
+  const res = await anthropicCall(base, [
+    { body: { output_config: { effort: 'low', format } } },
+    { body: { output_config: { format } } },
+    { body: { output_format: format } },
+    { beta: false, body: { system: system + '\n\nCHI tra ve MOT object JSON dung schema:\n' + JSON.stringify(schema) } },
+  ]);
+  const out = extractJSON(textOf(res));
+  out.usage = { input: res.usage?.input_tokens ?? 0, output: res.usage?.output_tokens ?? 0, model: res.model || model };
+  return out;
+}
+
+/** Chấm một bài luyện nhỏ: mode = point | teach | skeleton. */
+export async function gradeDrill(q, point, mode, answer) {
+  if (!PROVIDER) throw new Error('CHUA_CO_KEY');
+  const schema = mode === 'skeleton' ? SKELETON_SCHEMA : DRILL_SCHEMA;
+  const prompt = buildDrillPrompt(q, point, mode, answer);
+  return PROVIDER === 'openai'
+    ? openaiJSON(DRILL_SYSTEM, prompt, schema, mode === 'skeleton' ? 'skeleton' : 'drill')
+    : anthropicJSON(DRILL_SYSTEM, prompt, schema);
 }
 
 /* ------------------------------------------------------------------ export */
