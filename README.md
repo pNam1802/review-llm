@@ -54,7 +54,44 @@ Nếu chấm lỗi (sai key, hết quota, mất mạng), hệ thống **tự chu
 5. Đánh giá     → Quên / Khó / Được / Dễ → hệ thống hẹn lần ôn kế tiếp
 ```
 
-Bạn có thể **bấm vào từng ý trong rubric để tự sửa đánh giá** — điểm được tính lại ngay. Máy chấm chỉ là gợi ý; người học mới là trọng tài cuối cùng.
+## Cách chấm: đo HIỂU, không đo độ đầy đủ
+
+Đây là điểm khác biệt lớn nhất của hệ thống. Chấm bằng cách đếm xem bạn nêu được bao nhiêu
+ý trong dàn bài sẽ dạy bạn học vẹt. Nên thay vào đó, mỗi bài được chấm trên **4 trục**:
+
+| Trục | Hỏi điều gì |
+|---|---|
+| **Đúng bản chất** | có nói sai kiến thức không (trục duy nhất chặn cứng) |
+| **Nói được vì sao** | giải thích được cơ chế, hay chỉ nêu tên khái niệm |
+| **Nối các ý** | thấy quan hệ nhân quả và đánh đổi, hay chỉ liệt kê rời rạc |
+| **Vận dụng** | có ví dụ cụ thể, biết khi nào KHÔNG nên dùng |
+
+Từ 4 trục đó, **code** (không phải LLM) suy ra mức và điểm — nên thước đo nhất quán giữa mọi bài:
+
+```
+Chưa trúng  (sai bản chất)                        0–45
+Rời rạc     (đúng, nhưng mới là liệt kê)          58–75   ← vẫn là "Được", không phải trượt
+Kết nối     (nói được vì sao, nối được các ý)     72–90   ← đây đã là hiểu thật
+Vận dụng    (dùng được vào tình huống mới)        88–100
+```
+
+Hệ quả cụ thể, đo trên chính bộ câu hỏi này:
+
+| Bài làm | Điểm |
+|---|---|
+| Ngắn 3 câu, nhưng nói được cơ chế và nối 2 metric | **100** |
+| Liệt kê đủ 5/5 ý, không giải thích gì | **64** |
+| Sai bản chất (dù nghe trôi chảy) | **0** |
+
+Dàn bài đầy đủ vẫn hiện ra, nhưng nằm trong mục gập lại và ghi rõ *"tham khảo, KHÔNG dùng để trừ điểm"*.
+Nếu bạn thấy máy xếp mức chưa đúng, bấm thẳng vào chip mức để chỉnh — điểm tính lại ngay.
+
+Mỗi lần chấm còn kèm **một câu hỏi đào sâu** để kéo bạn lên mức trên; trả lời được câu đó
+thường là ranh giới giữa "nhớ" và "dùng được".
+
+> ⚠️ **Model chấm rất quan trọng.** Đo trên chính bộ câu hỏi này: `gpt-4.1` phân biệt đúng
+> (100 / 64 / 0 như bảng trên), còn `gpt-4o-mini` cho cả ba mức xấp xỉ nhau và **chấm một bài
+> sai kiến thức thành 51/100**. Hãy để `GRADER_MODEL=gpt-4.1`.
 
 ## Luyện lại ý còn hụt
 
@@ -86,7 +123,28 @@ Hệ thống theo dõi **từng ý một** (`pointStats`), nên trang Tiến đ�
 | **Thi thử** | Làm liền N câu, không xem đáp án giữa chừng, chấm và báo cáo ở cuối |
 | **Thư viện** | Tra cứu, đọc lại, hoặc tự kiểm tra một câu bất kỳ |
 | **Luyện câu hay quên** | Ở trang Tiến độ: gom riêng những câu bạn quên nhiều lần |
-| **Bài luyện nhỏ** | Tự bật khi điểm dưới 80 — xem mục bên dưới |
+| **Đổi món** 🎲 | Trộn 5 dạng bài ngắn: đúng/sai, trắc nghiệm, nối cặp, điền từ, sắp xếp |
+| **Bài luyện nhỏ** | Tự bật khi hiểu chưa tới — xem mục bên dưới |
+
+## Đổi món — 5 dạng bài ngắn
+
+Sinh thẳng từ nội dung 120 câu nên **chạy tức thì và không tốn API**:
+
+| Dạng | Đo cái gì | Nguồn |
+|---|---|---|
+| ⚖️ **Đúng hay Sai** | bắt đúng chỗ hiểu lệch | trường `traps` — vốn đã là các bẫy thật |
+| 🔘 **Trắc nghiệm** | phân biệt khái niệm dễ lẫn | mồi nhiễu lấy từ câu KHÁC **cùng chủ đề** |
+| 🔗 **Nối cặp** | gắn khái niệm với bản chất của nó | câu hỏi ↔ neo trí nhớ, trong cùng chủ đề |
+| ✏️ **Điền từ** | nhớ lại thuật ngữ chịu lực | che thuật ngữ trong một ý của rubric |
+| 🔢 **Sắp xếp** | hiểu trình tự và nhân quả | `content/sequences.mjs` (RAG pipeline, ReAct, lifecycle, CI/CD, ROI…) |
+
+Mồi nhiễu cố tình lấy từ câu khác **cùng chủ đề** — đó mới là chỗ hay lẫn, và phân biệt được
+chúng chính là hiểu.
+
+**Lưu ý quan trọng:** nhận ra (trắc nghiệm) dễ hơn nhớ lại (tự viết) rất nhiều. Nếu chỉ luyện
+dạng này, cảm giác "đã thuộc" sẽ đến sớm hơn thực tế. Vì vậy điểm quiz **không** được tính vào
+chỉ số "điểm bài tự luận", và **không** đụng vào lịch ôn của thẻ. Nó là món đổi vị và bài luyện
+phân biệt — phần tự luận mới là chỗ đo được bạn có dùng được kiến thức hay không.
 
 ### Phím tắt
 
@@ -105,7 +163,9 @@ Mỗi lựa chọn trong giao diện đều dựa trên một kết quả đã �
 | **Khó khăn hữu ích** — học dễ thì quên nhanh | Không gợi ý sẵn; gợi ý phải chủ động xin và chỉ có 2 mức |
 | **Xen kẽ** — trộn chủ đề khó hơn nhưng nhớ chắc và biết áp dụng đúng lúc hơn | Hàng đợi tránh xếp hai câu cùng chủ đề liền nhau |
 | **Hiệu chỉnh nhận thức** — phát hiện "ảo giác thông thạo" | Bước tự dự đoán trước khi trả lời, đối chiếu với điểm thật ở trang Tiến độ |
-| **Phản hồi theo thành phần** — biết thiếu ý nào hữu ích hơn biết mình sai | Rubric từng ý thay vì một điểm số duy nhất |
+| **Đo cấu trúc câu trả lời (SOLO)** — "liệt kê đủ ý rời rạc" là mức thấp hơn "nối được quan hệ" | Chấm 4 trục và xếp mức, không đếm số ý |
+| **Sáu mặt của hiểu (UbD)** — giải thích được, vận dụng được, thấy được ranh giới | Trục "vì sao", "nối ý", "vận dụng"; kèm câu hỏi đào sâu sau mỗi bài |
+| **Nhận ra ≠ nhớ lại** | Bài trắc nghiệm không tính vào điểm tự luận, không đụng lịch ôn |
 | **Xử lý sâu / giải thích cơ chế** — kiến thức có ý nghĩa thì khó rơi rụng | Mỗi câu đều có "vì sao quan trọng", bẫy thường gặp, neo trí nhớ, câu liên quan |
 | **Củng cố khi nghỉ** | Không khuyến khích học dồn; khi hết câu tới hạn thì nói thẳng là nên dừng |
 
@@ -117,6 +177,7 @@ Mỗi lựa chọn trong giao diện đều dựa trên một kết quả đã �
 server.mjs                  server Node thuần (static + lưu tiến độ + định tuyến API)
 llm.mjs                     lớp gọi LLM: OpenAI hoặc Anthropic, rubric + schema chấm bài
 content/questions/*.mjs     120 câu: đề, đáp án mẫu, rubric, bẫy, neo trí nhớ
+content/sequences.mjs       thứ tự đúng của các quy trình (cho dạng bài Sắp xếp)
 public/
   index.html
   css/app.css               design system (sáng/tối, đáp ứng di động)
@@ -124,10 +185,12 @@ public/
     app.js                  định tuyến + phím tắt + giao diện
     store.js                trạng thái, lưu trữ, gọi API
     srs.js                  lịch lặp lại ngắt quãng + chấm nháp offline
+    rubric.js               thước chấm 4 trục dùng chung cho server và giao diện
     drills.js               bài luyện theo từng ý: bậc thang, ba nhịp, phân loại ý
+    exercises.js            sinh 5 dạng bài ngắn từ chính nội dung câu hỏi
     metrics.js              số liệu tiến độ
     md.js  ui.js            markdown + tiện ích, biểu đồ SVG
-    views/                  home · study · drill · library · stats · settings
+    views/                  home · study · drill · quiz · library · stats · settings
 data/progress.json          tiến độ học của bạn (đã gitignore)
 ```
 

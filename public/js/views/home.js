@@ -21,6 +21,7 @@ export function renderHome(go) {
       }</p>
       <div class="hero__cta">
         <button class="btn btn--primary btn--lg" data-go="study">${hasDue ? 'Bắt đầu ôn' : 'Học thêm câu mới'}</button>
+        <button class="btn btn--lg" data-go="quiz">🎲 Đổi món</button>
         <button class="btn btn--lg" data-go="exam">Thi thử</button>
         <button class="btn btn--lg btn--ghost" data-go="library">Xem thư viện</button>
       </div>

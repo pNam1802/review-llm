@@ -79,53 +79,132 @@ export async function resolveModel() {
 }
 
 /* ------------------------------------------------------------------ schema */
+// Chấm theo HIỂU, không theo độ đầy đủ.
+//
+// Nền tảng: thang SOLO (Biggs & Collis) xếp hạng CẤU TRÚC của câu trả lời chứ
+// không đếm số ý — theo thang đó, "liệt kê đủ 5 ý rời rạc" (multi-structural)
+// đứng THẤP HƠN "nêu 3 ý nhưng nối được quan hệ nhân quả" (relational).
+// Cộng thêm các mặt của "hiểu" trong Understanding by Design: giải thích được
+// cơ chế, thấy quan hệ và đánh đổi, chuyển được sang tình huống mới.
+//
+// LLM chỉ xếp MỨC và chấm 4 TRỤC; điểm số do code tính (scoreFromRubric) để
+// mọi bài đều quy về cùng một thước.
+export { LEVELS, LEVEL_LABEL, scoreFromRubric, ratingFromScore } from './public/js/rubric.js';
+import { LEVELS, scoreFromRubric, ratingFromScore, levelFromAxes } from './public/js/rubric.js';
+
 export const GRADE_SCHEMA = {
   type: 'object',
   properties: {
-    overall: { type: 'integer', description: 'Diem tong 0-100' },
-    verdict: { type: 'string', enum: ['excellent', 'good', 'partial', 'weak', 'blank'] },
+    // Bắt trích dẫn TRƯỚC khi cho điểm. Thứ tự trường cũng là thứ tự model sinh ra,
+    // nên phải tìm bằng chứng trong bài rồi mới được chấm - cách chống "chấm hào phóng"
+    // hiệu quả nhất với model nhỏ.
+    why_evidence: { type: 'string', description: 'Trich NGUYEN VAN doan hoc vien giai thich VI SAO (co "vi", "nen", "dan toi", "neu...thi"). Chuoi rong neu bai chi liet ke.' },
+    link_evidence: { type: 'string', description: 'Trich NGUYEN VAN doan hoc vien noi hai y voi nhau hoac neu danh doi. Chuoi rong neu khong co.' },
+    apply_evidence: { type: 'string', description: 'Trich NGUYEN VAN vi du cu the / tinh huong / ranh gioi "khi nao khong dung". Chuoi rong neu khong co.' },
+    axes: {
+      type: 'object',
+      description: 'Cham tung truc thang 0-4 (0 khong co, 2 tam duoc, 4 rat tot)',
+      properties: {
+        correct: { type: 'integer', description: 'Dung ban chat, khong noi sai kien thuc' },
+        why: { type: 'integer', description: 'Giai thich duoc CO CHE / li do, khong chi neu ten' },
+        link: { type: 'integer', description: 'Noi cac y voi nhau, thay quan he nhan qua va danh doi' },
+        apply: { type: 'integer', description: 'Van dung: khi nao dung / khong dung, vi du cu the, tinh huong moi' },
+      },
+      required: ['correct', 'why', 'link', 'apply'],
+      additionalProperties: false,
+    },
+    strengths: { type: 'array', description: '1-3 dieu hoc vien lam TOT, noi cu the (tieng Viet)', items: { type: 'string' } },
+    gaps: { type: 'array', description: '1-3 cho hieu CHUA TOI (khong phai "thieu y"), tieng Viet', items: { type: 'string' } },
+    misconceptions: { type: 'array', description: 'Nhung cho hoc vien hieu SAI. Rong neu khong co.', items: { type: 'string' } },
     points: {
       type: 'array',
-      description: 'Danh gia tung y trong rubric, dung thu tu da cho',
+      description: 'THAM KHAO: hoc vien co cham toi tung y trong dan bai khong. KHONG dung de tru diem.',
       items: {
         type: 'object',
         properties: {
           id: { type: 'string' },
           status: { type: 'string', enum: ['hit', 'partial', 'miss'] },
-          evidence: { type: 'string', description: 'Trich cau chu cua hoc vien chung minh, chuoi rong neu miss' },
-          note: { type: 'string', description: 'Mot cau ngan giai thich vi sao cham nhu vay' },
+          evidence: { type: 'string', description: 'Trich cau chu cua hoc vien, chuoi rong neu miss' },
+          note: { type: 'string', description: 'Mot cau ngan, hoac chuoi rong' },
         },
         required: ['id', 'status', 'evidence', 'note'],
         additionalProperties: false,
       },
     },
-    misconceptions: {
-      type: 'array',
-      description: 'Nhung cho hoc vien hieu SAI (khong phai thieu). Rong neu khong co.',
-      items: { type: 'string' },
-    },
-    missing_summary: { type: 'string', description: 'Tom tat nhung y con thieu, 1-2 cau, tieng Viet' },
-    feedback: { type: 'string', description: 'Nhan xet 2-4 cau bang tieng Viet, giong mot mentor' },
-    upgrade: { type: 'string', description: 'Mot cau goi y de lan sau tra loi tot hon' },
-    suggested_rating: { type: 'string', enum: ['again', 'hard', 'good', 'easy'] },
+    feedback: { type: 'string', description: 'Nhan xet 2-4 cau bang tieng Viet, giong mentor' },
+    next_question: { type: 'string', description: 'MOT cau hoi dao sau de keo hoc vien len mot muc' },
   },
-  required: ['overall', 'verdict', 'points', 'misconceptions', 'missing_summary', 'feedback', 'upgrade', 'suggested_rating'],
+  required: ['why_evidence', 'link_evidence', 'apply_evidence', 'axes', 'strengths', 'gaps', 'misconceptions', 'points', 'feedback', 'next_question'],
   additionalProperties: false,
 };
 
-const GRADER_SYSTEM = `Ban la giam khao cham bai tu luan cho ky thi AI Engineering, cham bang TIENG VIET.
+const GRADER_SYSTEM = `Ban la giam khao cham bai tu luan mon AI Engineering, cham bang TIENG VIET.
 
-NGUYEN TAC CHAM:
-1. Cham theo NGU NGHIA, khong cham theo cau chu. Hoc vien dien dat khac dap an mau, dung tu dong nghia, dung tieng Anh thay tieng Viet (hoac nguoc lai), viet tat quen thuoc trong nganh (vd "sim" = similarity, "ctx" = context) => van tinh la DUNG neu y dung.
-2. Moi y trong rubric cham doc lap: "hit" = neu duoc y do (du ngan gon), "partial" = dung huong nhung thieu chinh xac / thieu ve, "miss" = khong nhac den.
-3. KHONG tru diem vi hoc vien viet ngan, khong doi hoc vien viet lai y het dap an mau. Ngan gon ma dung y = diem toi da.
-4. KHONG cho diem cho y ma hoc vien chi nhac ten thuat ngu nhung dung SAI ban chat.
-5. Neu hoc vien viet dung nhung THUA (lac de) thi khong tru diem, tru khi phan thua the hien hieu sai -> ghi vao misconceptions.
-6. Cau tra loi bo trong / "khong nho" / vo nghia => overall = 0, verdict = "blank".
-7. overall tinh tu trong so cac y: hit = du trong so, partial = mot nua trong so, miss = 0; quy ve thang 100 va lam tron.
-8. suggested_rating theo overall: <50 -> again, 50-69 -> hard, 70-89 -> good, >=90 -> easy.
+MUC TIEU: do muc do HIEU va BIET AP DUNG, KHONG do do thuoc bai.
+Hoc vien nay khong hoc de tra bai. TUYET DOI khong bat ho phai liet ke du moi y trong dan bai.
 
-Giong dieu: thang than, cu the, khong sao rong. Chi ra chinh xac y nao thieu va cau nao trong bai hoc vien lien quan.`;
+QUY TAC QUAN TRONG NHAT:
+1. Mot cau tra loi NGAN nhung noi dung BAN CHAT va LI DO thi TOT HON mot cau tra loi liet ke
+   du moi y ma roi rac, khong giai thich duoc vi sao. Cham theo dung tinh than do.
+2. KHONG ha muc chi vi thieu y. Chi ha muc khi y thieu la y COT LOI khien cau tra loi sai ban chat.
+   Cac y con lai chi ghi nhan trong truong "points" de tham khao, khong dung de tru diem.
+3. Dien dat khac dap an mau, dung tu dong nghia, tieng Anh lan tieng Viet, viet tat quen thuoc
+   trong nganh ("sim" = similarity, "ctx" = context) => van tinh la dung.
+4. Hoc vien dua VI DU CUA RIENG HO, cach dien giai rieng, hoac goc nhin khac ma van dung
+   => CONG diem cho truc "apply", tuyet doi khong coi la lac de.
+5. Chi ghi "misconceptions" khi hoc vien noi mot dieu SAI ve ban chat - khong phai khi ho noi thieu.
+
+VIEC CUA BAN CHI LA CHAM 4 TRUC. Khong phai xep hang, khong phai cho diem -
+he thong tu suy ra muc va diem tu 4 truc nay.
+
+CHAM 4 TRUC, moi truc 0-4 (0 khong co gi, 2 co nhung so sai, 3 lam duoc, 4 rat tot):
+- correct : dung ban chat, khong noi sai.
+- why     : giai thich duoc co che / li do, khong chi neu ten khai niem.
+- link    : noi cac y voi nhau, thay quan he va danh doi.
+- apply   : biet dung khi nao / khong dung khi nao, co vi du hoac tinh huong cu the.
+
+DAU HIEU NHAN BIET (rat quan trong - dung nham LIET KE voi GIAI THICH):
+- Chi la LIET KE (=> level "roi-rac", why <= 2, link <= 2): cac cau noi tiep nhau, moi cau mot y,
+  noi CAI GI chu khong noi VI SAO. Dau hieu: "A la ... . B la ... . Cach tinh: ... . Cach cai thien: ..."
+  Du co du 5/5 y va dung het thi VAN chi la "roi-rac".
+- Co GIAI THICH (=> why >= 3): tra loi duoc "vi sao lai the", neu duoc co che, dieu kien, he qua.
+  Dau hieu ngon ngu: "vi", "nen", "do do", "dan toi", "neu ... thi ...", "nho vay", "boi vi".
+- Co NOI KET (=> link >= 3): dat hai y canh nhau va noi ro QUAN HE giua chung, hoac neu danh doi,
+  hoac chi ra mot y kia se sai neu thieu y nay. Dau hieu: "trong khi do", "nhung", "phai doc cung",
+  "danh doi", "nguoc lai", "keo theo".
+- Co VAN DUNG (=> apply >= 3): tinh huong cu the, con so, vi du rieng, hoac neu duoc khi nao KHONG dung.
+
+VI DU DOI CHIEU (cung mot cau hoi ve Faithfulness):
+[Bai X] "Faithfulness la do trung thanh voi context. Cach tinh: tach thanh claim, dem ti le claim
+duoc context chung minh, 0 den 1. Do la metric do hallucination. Phan biet voi dung su that.
+Cach cai thien: giam temperature, ep citation."
+=> DU Y nhung chi liet ke, khong cau nao noi VI SAO. axes: correct 4, why 2, link 1, apply 1.
+
+[Bai Y] "Faithfulness xem cau tra loi co bam vao context khong, chu khong do dung sai that -
+nen neu tai lieu lay ve da cu thi model chep dung theo do van duoc 1.0 ma nguoi dung van nhan tin sai.
+Vi vay phai doc no cung context recall."
+=> IT Y HON nhung noi duoc co che va hau qua, noi hai metric voi nhau.
+   axes: correct 4, why 4, link 4, apply 2.
+
+Bai Y phai duoc diem CAO HON bai X ve why/link. Do la tinh than cham cua he thong nay.
+
+CACH LAM BAT BUOC - trich dan TRUOC, cham SAU:
+1. Truoc tien dien why_evidence / link_evidence / apply_evidence bang cach TRICH NGUYEN VAN
+   tu bai lam. Neu bai khong co doan nao nhu vay thi de CHUOI RONG - tuyet doi khong bia.
+2. Sau do moi cham truc, va phai TON TRONG dieu vua trich:
+   - khong trich duoc gi cho mot truc => truc do toi da 3 (van co the la 3 neu y do the hien ro rang
+     trong bai du khong trich duoc mot cau gon).
+   Trich duoc that => cho 3 hoac 4 thoai mai.
+Bai liet ke du y nhung khong giai thich duoc gi van la ket qua CHAP NHAN DUOC, khong phai that bai -
+hay noi ro dieu do trong feedback de hoc vien khong nan.
+
+"next_question": dat MOT cau hoi dao sau vua tam de keo hoc vien len mot muc,
+vi du "Neu tai lieu lay ve bi cu thi metric nao van dep ma cau tra loi van sai?".
+
+Bai bo trong / "khong nho" / vo nghia => tat ca truc = 0.
+
+Giong dieu: thang than, cu the, ton trong. Khen dung cho lam duoc (strengths), chi ro cho hieu
+chua toi (gaps). Khong sao rong, khong giang giai dai dong.`;
 
 const COACH_SYSTEM = `Ban la gia su AI Engineering, tra loi bang TIENG VIET, ngan gon (toi da 250 tu), dung vi du cu the.
 Ban dang giup hoc vien dao sau MOT cau hoi on tap. Bam sat ngu canh cau hoi va dap an mau duoc cung cap.
@@ -170,6 +249,8 @@ NGUYEN TAC:
 
 const DRILL_MODE_INSTRUCTION = {
   point: 'Hoc vien duoc yeu cau viet lai DUNG MOT y trong dap an bang loi cua minh.',
+  why: 'Hoc vien duoc yeu cau giai thich VI SAO y nay lai nhu vay, va dieu gi hong neu bo y nay di. Cham theo CO CHE va LI DO, khong doi ho nhac lai noi dung y. Neu ho neu duoc mot he qua dung thi da la ok.',
+  misconception: 'Hoc vien duoc dua mot NHAN DINH SAI va phai chi ra sai o dau roi sua lai. ok = true khi ho chi dung duoc cho sai, du dien dat vung ve. ok = false neu ho dong y voi nhan dinh sai do.',
   teach: 'Hoc vien duoc yeu cau giai thich y nay cho nguoi moi vao nghe, kem mot vi du cua rieng ho. Cham them ve do de hieu va do dung cua vi du.',
   skeleton: 'Hoc vien duoc yeu cau goi ten TAT CA cac y cua cau hoi bang cum tu ngan (khong can viet day du). Chi can goi dung ten/chu de cua y la tinh la matched, khong doi giai thich.',
 };
@@ -190,7 +271,8 @@ ${q.answer}
 ${userAnswer}
 </bai_lam>
 
-Cham bai lam tren theo rubric. Tra ve JSON dung schema. Truong "points" phai co dung ${q.points.length} phan tu, id lay dung tu rubric.`;
+Cham bai lam tren. Nho: do HIEU chu khong do do day du.
+Tra ve JSON dung schema. Truong "points" phai co dung ${q.points.length} phan tu, id lay dung tu rubric.`;
 }
 
 /* ------------------------------------------------------------------ tiện ích */
@@ -236,6 +318,7 @@ async function openaiGrade(q, userAnswer) {
   const res = await ladder([
     // 1) Structured Outputs (chuẩn nhất): model bị ràng buộc trả đúng schema
     () => c.chat.completions.create({
+      temperature: 0,   // chấm bài phải tất định: cùng bài làm phải ra cùng kết quả
       model,
       messages,
       response_format: {
@@ -245,6 +328,7 @@ async function openaiGrade(q, userAnswer) {
     }),
     // 2) JSON mode: chỉ đảm bảo là JSON hợp lệ, schema mô tả trong prompt
     () => c.chat.completions.create({
+      temperature: 0,   // chấm bài phải tất định: cùng bài làm phải ra cùng kết quả
       model,
       messages: [
         { role: 'system', content: GRADER_SYSTEM + '\n\nCHI tra ve MOT object JSON dung schema sau:\n' + JSON.stringify(GRADE_SCHEMA) },
@@ -343,10 +427,12 @@ async function openaiJSON(system, prompt, schema, name) {
   const messages = [{ role: 'system', content: system }, { role: 'user', content: prompt }];
   const res = await ladder([
     () => c.chat.completions.create({
+      temperature: 0,   // chấm bài phải tất định: cùng bài làm phải ra cùng kết quả
       model, messages,
       response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
     }),
     () => c.chat.completions.create({
+      temperature: 0,   // chấm bài phải tất định: cùng bài làm phải ra cùng kết quả
       model,
       messages: [{ role: 'system', content: system + '\n\nCHI tra ve MOT object JSON dung schema:\n' + JSON.stringify(schema) }, messages[1]],
       response_format: { type: 'json_object' },
@@ -389,7 +475,13 @@ export async function gradeDrill(q, point, mode, answer) {
 /* ------------------------------------------------------------------ export */
 export async function grade(q, userAnswer) {
   if (!PROVIDER) throw new Error('CHUA_CO_KEY');
-  return PROVIDER === 'openai' ? openaiGrade(q, userAnswer) : anthropicGrade(q, userAnswer);
+  const g = PROVIDER === 'openai' ? await openaiGrade(q, userAnswer) : await anthropicGrade(q, userAnswer);
+  // Mức, điểm và mức đánh giá đều do code quyết định. LLM chỉ chấm 4 trục -
+  // một việc dễ hơn nhiều nên ổn định hơn nhiều.
+  g.level = levelFromAxes(g.axes, g.misconceptions || []);
+  g.overall = scoreFromRubric(g);
+  g.suggested_rating = ratingFromScore(g.overall);
+  return g;
 }
 
 export async function coach(q, question, history = []) {

@@ -36,9 +36,10 @@ export function overview(now = Date.now()) {
   };
 }
 
+/** Chỉ tính bài TỰ LUẬN: bài trắc nghiệm dễ hơn nhiều, trộn vào sẽ làm đẹp số ảo. */
 export function accuracyOver(days) {
   const from = Date.now() - days * DAY;
-  const rows = state.data.attempts.filter((a) => a.t >= from);
+  const rows = state.data.attempts.filter((a) => a.t >= from && (a.k || 'essay') === 'essay');
   if (!rows.length) return null;
   return rows.reduce((s, a) => s + a.s, 0) / rows.length / 100;
 }

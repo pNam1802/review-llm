@@ -113,7 +113,7 @@ export const today = (d = new Date()) => {
   return z.toISOString().slice(0, 10);
 };
 
-export function logAttempt({ questionId, score, rating, seconds, confidence, isNew, offline }) {
+export function logAttempt({ questionId, score, rating, seconds, confidence, isNew, offline, kind }) {
   const key = today();
   const day = state.data.days[key] || { reviews: 0, correct: 0, seconds: 0, newCards: 0 };
   day.reviews += 1;
@@ -130,6 +130,9 @@ export function logAttempt({ questionId, score, rating, seconds, confidence, isN
     sec: Math.round(seconds || 0),
     c: confidence ?? null,
     o: offline ? 1 : 0,
+    // 'quiz' = bài trắc nghiệm/nối/điền ngắn. Tách riêng vì nhận ra dễ hơn nhớ lại,
+    // trộn chung sẽ thổi phồng chỉ số "điểm bài tự luận".
+    k: kind || 'essay',
   });
   if (state.data.attempts.length > 4000) state.data.attempts.splice(0, 1000);
 

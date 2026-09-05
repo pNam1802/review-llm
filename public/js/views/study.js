@@ -1,7 +1,8 @@
 import { state, getCard, setCard, save, logAttempt, gradeAnswer, askCoach } from '../store.js';
 import {
-  buildQueue, review, previewIntervals, localGrade, scoreFromPoints, ratingFromScore, interleave,
+  buildQueue, review, previewIntervals, localGrade, interleave,
 } from '../srs.js';
+import { LEVELS, LEVEL_LABEL, AXES, nextLevel, scoreFromRubric, ratingFromScore } from '../rubric.js';
 import { recordGrade, pendingDrills, buildDrill } from '../drills.js';
 import { renderDrillCard } from './drill.js';
 import { md } from '../md.js';
@@ -12,14 +13,6 @@ const RATING_LABEL = {
   hard: { b: 'Khó', s: 'nhớ chật vật' },
   good: { b: 'Được', s: 'nhớ đúng ý' },
   easy: { b: 'Dễ', s: 'nhớ ngay, đầy đủ' },
-};
-
-const VERDICT = {
-  excellent: ['Xuất sắc', 'Bạn nêu gần như đủ mọi ý cần có.'],
-  good: ['Tốt', 'Nắm được phần lõi, còn thiếu vài chi tiết.'],
-  partial: ['Được một nửa', 'Đúng hướng nhưng thiếu khá nhiều ý quan trọng.'],
-  weak: ['Còn yếu', 'Cần đọc lại đáp án mẫu và diễn đạt lại bằng lời của mình.'],
-  blank: ['Chưa trả lời', 'Không sao — lần sau cứ viết những gì bạn nhớ được, dù ít.'],
 };
 
 export function renderStudy(go, opts = {}) {
@@ -96,7 +89,7 @@ export function renderStudy(go, opts = {}) {
     }
     const item = activeDrills.shift();
     const q = state.byId.get(item.qid);
-    currentDrill = q ? buildDrill(q, item.pid, state.questions) : null;
+    currentDrill = q ? buildDrill(q, item.pid, state.questions, item) : null;
     if (!currentDrill) return nextDrill();
     step = 'drill';
     paint();
@@ -232,36 +225,77 @@ export function renderStudy(go, opts = {}) {
     const d = document.createElement('div');
     d.className = 'stack fade-in';
     d.style.marginTop = '16px';
-    const [vTitle, vSub] = VERDICT[g.verdict] || VERDICT.partial;
+    const lv = LEVEL_LABEL[g.level] || LEVEL_LABEL['roi-rac'];
+    const tiep = nextLevel(g.level);
     const c = getCard(q.id);
     const prev = previewIntervals(c);
     const suggested = g.suggested_rating || ratingFromScore(g.overall);
+    const a = g.axes || {};
 
     d.innerHTML = `
       <section class="card">
         <div class="score">
           ${scoreRing(g.overall)}
           <div class="score__txt">
-            <b>${vTitle}${g.offline ? ' · chấm nháp' : ''}</b>
-            <p>${esc(g.feedback || vSub)}</p>
+            <b>Mức: ${lv.name}${g.offline ? ' · chấm nháp' : ''}</b>
+            <p>${esc(lv.desc)}</p>
             ${confidence ? `<p class="tiny muted">Bạn dự đoán: <b>${['', 'Quên rồi', 'Mang máng', 'Chắc chắn'][confidence]}</b> — ${calibNote(confidence, g.overall)}</p>` : ''}
           </div>
         </div>
+        ${g.axes ? `<div class="axes">${AXES.map((ax) => axisRow(ax, Number(a[ax.id]) || 0)).join('')}</div>` : ''}
+        ${!g.offline ? `<div class="row" style="margin-top:12px">
+          <span class="tiny muted">Chấm chưa đúng?</span>
+          ${LEVELS.map((L) => `<button class="chip chip--sm" data-level="${L}" aria-pressed="${L === g.level}">${LEVEL_LABEL[L].name}</button>`).join('')}
+        </div>` : ''}
       </section>
 
       <section class="card">
-        <div class="card__title">Từng ý trong đáp án <span class="tiny muted" style="font-weight:400">— bấm vào một ý để tự sửa đánh giá</span></div>
-        <div class="rubric rubric--self" id="rubric">
-          ${q.points.map((p, i) => rubricItem(p, g.points?.[i], i)).join('')}
+        <div class="grid grid--2">
+          <div>
+            <div class="callout__label" style="color:var(--good)">✓ Bạn làm được</div>
+            ${(g.strengths || []).length
+              ? `<ul class="fb-list">${g.strengths.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
+              : '<p class="small muted">—</p>'}
+          </div>
+          <div>
+            <div class="callout__label" style="color:var(--warn)">→ Hiểu chưa tới</div>
+            ${(g.gaps || []).length
+              ? `<ul class="fb-list">${g.gaps.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`
+              : '<p class="small muted">—</p>'}
+          </div>
         </div>
-        ${g.missing_summary && g.verdict !== 'excellent' ? `<div class="callout" style="margin-top:12px"><div class="callout__label">Còn thiếu</div>${esc(g.missing_summary)}</div>` : ''}
-        ${g.misconceptions?.length ? `<div class="callout callout--trap" style="margin-top:10px"><div class="callout__label">Chỗ đang hiểu sai</div><ul>${g.misconceptions.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
-        ${g.upgrade ? `<div class="callout callout--why" style="margin-top:10px"><div class="callout__label">Lần sau làm tốt hơn</div>${esc(g.upgrade)}</div>` : ''}
+        ${g.misconceptions?.length ? `<div class="callout callout--trap" style="margin-top:12px">
+          <div class="callout__label">⚠ Chỗ đang hiểu sai — quan trọng hơn phần thiếu</div>
+          <ul>${g.misconceptions.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
+        ${g.feedback ? `<p class="small dim" style="margin-top:12px">${esc(g.feedback)}</p>` : ''}
+        ${tiep ? `<p class="tiny muted" style="margin-top:6px">Bước tiếp theo để lên mức <b>${LEVEL_LABEL[tiep].name}</b>: ${esc(LEVEL_LABEL[tiep].desc)}</p>` : ''}
       </section>
+
+      ${g.next_question ? `<section class="card card--ask">
+        <div class="callout__label">Thử trả lời tiếp câu này</div>
+        <p style="font-size:16px;margin:6px 0 12px">${esc(g.next_question)}</p>
+        <div class="row">
+          <button class="btn btn--sm" data-act="ask-next">Hỏi trợ giảng câu này</button>
+          <span class="tiny muted">Không bắt buộc — nhưng trả lời được là bạn lên một mức.</span>
+        </div>
+      </section>` : ''}
 
       <details class="reveal" open>
         <summary>Đáp án mẫu</summary>
         <div class="reveal__body md">${md(q.answer)}</div>
+      </details>
+
+      <details class="reveal">
+        <summary>Dàn bài đầy đủ — tham khảo, KHÔNG dùng để trừ điểm</summary>
+        <div class="reveal__body">
+          <p class="tiny muted" style="margin-bottom:10px">
+            Đây là các ý một câu trả lời đầy đủ có thể có. Bạn không cần nêu hết —
+            điểm ở trên chấm mức độ hiểu, không đếm số ý. Bấm vào một ý để sửa nếu máy đánh dấu nhầm.
+          </p>
+          <div class="rubric rubric--self" id="rubric">
+            ${q.points.map((p, i) => rubricItem(p, g.points?.[i], i)).join('')}
+          </div>
+        </div>
       </details>
 
       <section class="card">
@@ -281,7 +315,7 @@ export function renderStudy(go, opts = {}) {
             <button class="btn" data-act="coach">Hỏi</button>
           </div>
           <div class="row" style="margin-top:8px">
-            ${['Giải thích lại đơn giản hơn', 'Cho một ví dụ thực tế', 'Câu này hay bị hỏi kiểu nào?'].map((s) => `<button class="chip" data-act="coach-quick" data-q="${esc(s)}">${s}</button>`).join('')}
+            ${['Giải thích lại đơn giản hơn', 'Cho một ví dụ thực tế', 'Khi nào thì KHÔNG nên dùng?'].map((s) => `<button class="chip" data-act="coach-quick" data-q="${esc(s)}">${s}</button>`).join('')}
           </div>
         </div>
       </details>
@@ -300,6 +334,12 @@ export function renderStudy(go, opts = {}) {
     return d;
   }
 
+  const axisRow = (ax, v) => `
+    <div class="axis" title="${esc(ax.hint)}">
+      <span class="axis__label">${ax.label}</span>
+      <span class="axis__dots">${[0, 1, 2, 3].map((i) => `<i class="axis__dot${i < v ? ' axis__dot--on' : ''}"></i>`).join('')}</span>
+      <span class="axis__hint tiny muted">${esc(ax.hint)}</span>
+    </div>`;
   const rubricItem = (p, res, i) => {
     const st = res?.status || 'miss';
     const mark = st === 'hit' ? '✓' : st === 'partial' ? '～' : '✗';
@@ -326,7 +366,7 @@ export function renderStudy(go, opts = {}) {
   /* ------------------------------------------------------------ hành vi */
   function wire(el) {
     el.addEventListener('click', async (e) => {
-      const t = e.target.closest('[data-act], [data-conf], [data-rate], [data-idx]');
+      const t = e.target.closest('[data-act], [data-conf], [data-rate], [data-idx], [data-level]');
       if (!t) return;
 
       if (t.dataset.conf) {
@@ -336,7 +376,8 @@ export function renderStudy(go, opts = {}) {
         return paint();
       }
       if (t.dataset.rate) return applyRating(t.dataset.rate);
-      if (t.dataset.idx != null && step === 'feedback') return cycleRubric(Number(t.dataset.idx), el);
+      if (t.dataset.level) return setLevel(t.dataset.level);
+      if (t.dataset.idx != null && step === 'feedback') return cycleRubric(Number(t.dataset.idx));
 
       switch (t.dataset.act) {
         case 'quit': return go('home');
@@ -344,6 +385,11 @@ export function renderStudy(go, opts = {}) {
         case 'blank': return submit('');
         case 'submit': return submit(el.querySelector('#ans')?.value ?? '');
         case 'jump': return go('question', { id: Number(t.dataset.id) });
+        case 'ask-next': {
+          const box = el.querySelector('#coachBox');
+          if (box) box.open = true;
+          return doCoach(el, grade?.next_question || '');
+        }
         case 'coach': return doCoach(el, el.querySelector('#coachInput').value);
         case 'coach-quick': return doCoach(el, t.dataset.q);
         case 'next': return next();
@@ -412,16 +458,29 @@ export function renderStudy(go, opts = {}) {
     }
   }
 
-  function cycleRubric(idx, el) {
+  /**
+   * Sửa đánh dấu bao phủ của một ý. KHÔNG đổi điểm - điểm chấm mức độ hiểu,
+   * không đếm số ý. Việc này chỉ để phần luyện tập nhắm đúng chỗ.
+   */
+  function cycleRubric(idx) {
     const order = ['hit', 'partial', 'miss'];
+    grade.points = grade.points || [];
     const cur = grade.points[idx]?.status || 'miss';
-    const nextStatus = order[(order.indexOf(cur) + 1) % order.length];
-    grade.points[idx] = { ...(grade.points[idx] || {}), status: nextStatus };
-    grade.overall = scoreFromPoints(current(), grade.points);
+    grade.points[idx] = { ...(grade.points[idx] || {}), status: order[(order.indexOf(cur) + 1) % order.length] };
+    paint();
+    root.querySelector('#rubric')?.closest('details')?.setAttribute('open', '');
+    root.querySelector('#rubric')?.scrollIntoView({ block: 'center' });
+  }
+
+  /** Học viên thấy máy xếp mức chưa đúng thì tự chỉnh, điểm tính lại theo mức mới. */
+  function setLevel(level) {
+    if (!grade || grade.offline) return;
+    grade.level = level;
+    grade.overall = scoreFromRubric(grade);
     grade.suggested_rating = ratingFromScore(grade.overall);
     grade.edited = true;
     paint();
-    root.querySelector('#rubric')?.scrollIntoView({ block: 'center' });
+    toast(`Đã chỉnh mức: ${LEVEL_LABEL[level].name} · ${grade.overall} điểm`, 1800);
   }
 
   async function doCoach(el, question) {
@@ -462,7 +521,7 @@ export function renderStudy(go, opts = {}) {
     session.results.push({ q, score: grade?.overall ?? 0, rating });
 
     // Ghi nhận kết quả TỪNG Ý và xếp lịch luyện cho ý còn hụt
-    if (grade?.points) recordGrade(q, grade.points, grade.overall ?? 0);
+    if (grade) recordGrade(q, grade);
     save();
     toast(`Ôn lại ${relTime(updated.due)}`, 1500);
 
@@ -511,7 +570,7 @@ export function renderStudy(go, opts = {}) {
       updated.lastScore = g.overall;
       setCard(updated);
       logAttempt({ questionId: r.q.id, score: g.overall, rating, seconds: r.seconds, confidence: r.confidence, isNew, offline: g.offline });
-      if (g.points) recordGrade(r.q, g.points, g.overall);
+      if (g) recordGrade(r.q, g);
     }
     save({ immediate: true });
     session.examResults = graded;

@@ -34,8 +34,20 @@ async function loadContent() {
     const mod = await import(url);
     topics.push(mod.default);
   }
+  // thứ tự các quy trình, dùng cho dạng bài "Sắp xếp"
+  let sequences = {};
+  try {
+    const seqUrl = pathToFileURL(path.join(here, 'content', 'sequences.mjs')).href + '?v=' + Date.now();
+    sequences = (await import(seqUrl)).default || {};
+  } catch { /* không có file cũng không sao */ }
+
   const questions = topics.flatMap((t) =>
-    t.questions.map((q) => ({ ...q, topic: t.id, topicName: t.name })),
+    t.questions.map((q) => ({
+      ...q,
+      topic: t.id,
+      topicName: t.name,
+      ...(sequences[q.id] ? { sequence: sequences[q.id] } : {}),
+    })),
   );
   return {
     topics: topics.map(({ questions: qs, ...rest }) => ({ ...rest, count: qs.length })),
@@ -143,13 +155,15 @@ const server = http.createServer(async (req, res) => {
 
       if (!answer || !answer.trim()) {
         return sendJSON(res, 200, {
+          level: 'lac',
+          axes: { correct: 0, why: 0, link: 0, apply: 0 },
           overall: 0,
-          verdict: 'blank',
-          points: q.points.map((pt, i) => ({ id: pt.id || 'p' + (i + 1), status: 'miss', evidence: '', note: 'Chưa trả lời.' })),
+          strengths: [],
+          gaps: ['Chưa có bài làm để đánh giá.'],
           misconceptions: [],
-          missing_summary: 'Chưa có bài làm.',
-          feedback: 'Bạn để trống câu trả lời. Đọc kỹ đáp án mẫu rồi thử viết lại bằng lời của mình.',
-          upgrade: 'Lần sau cứ viết những gì nhớ được, dù chỉ một ý - chính nỗ lực nhớ lại mới tạo ra trí nhớ.',
+          points: q.points.map((pt, i) => ({ id: pt.id || 'p' + (i + 1), status: 'miss', evidence: '', note: '' })),
+          feedback: 'Bạn để trống câu trả lời. Đọc kỹ đáp án mẫu rồi thử diễn đạt lại bằng lời của mình.',
+          next_question: 'Nếu phải giải thích ý chính của câu này cho một đồng nghiệp trong 30 giây, bạn sẽ nói gì?',
           suggested_rating: 'again',
         });
       }

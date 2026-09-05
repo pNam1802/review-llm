@@ -6,10 +6,12 @@ import { renderStudy } from './views/study.js';
 import { renderLibrary, renderQuestion } from './views/library.js';
 import { renderStats } from './views/stats.js';
 import { renderSettings } from './views/settings.js';
+import { renderQuiz } from './views/quiz.js';
 
 const NAV = [
   { id: 'home', icon: '🏠', label: 'Trang chủ' },
   { id: 'study', icon: '🎯', label: 'Ôn tập' },
+  { id: 'quiz', icon: '🎲', label: 'Đổi món' },
   { id: 'library', icon: '📚', label: 'Thư viện' },
   { id: 'stats', icon: '📈', label: 'Tiến độ' },
   { id: 'settings', icon: '⚙️', label: 'Cài đặt' },
@@ -58,6 +60,7 @@ function render() {
   switch (route) {
     case 'study': view = renderStudy(go, routeArgs); break;
     case 'exam': view = renderStudy(go, { ...routeArgs, mode: 'exam', count: routeArgs.count || 10 }); break;
+    case 'quiz': view = renderQuiz(go, routeArgs); break;
     case 'question': view = renderQuestion(go, routeArgs); break;
     case 'library': view = renderLibrary(go, routeArgs); break;
     case 'stats': view = renderStats(go); break;
@@ -68,7 +71,7 @@ function render() {
   main.scrollTo?.(0, 0);
   window.scrollTo(0, 0);
   paintNav();
-  document.title = `${{ home: 'Trang chủ', study: 'Ôn tập', exam: 'Thi thử', library: 'Thư viện', stats: 'Tiến độ', settings: 'Cài đặt', question: 'Câu ' + (routeArgs.id ?? '') }[route] || ''} · Ôn tập AI Engineering`;
+  document.title = `${{ home: 'Trang chủ', study: 'Ôn tập', exam: 'Thi thử', library: 'Thư viện', stats: 'Tiến độ', settings: 'Cài đặt', quiz: 'Đổi món', question: 'Câu ' + (routeArgs.id ?? '') }[route] || ''} · Ôn tập AI Engineering`;
 }
 
 function paintNav() {

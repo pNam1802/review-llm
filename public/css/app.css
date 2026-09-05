@@ -357,6 +357,25 @@ details.reveal > summary::before { content: "▸"; color: var(--ink-3); transiti
 details.reveal[open] > summary::before { transform: rotate(90deg); }
 details.reveal > .reveal__body { padding: 0 18px 16px; border-top: 1px solid var(--line); padding-top: 14px; }
 
+/* ------------------------------------------------------- rubric 4 trục */
+.axes { display: grid; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.axis { display: flex; align-items: center; gap: 12px; font-size: 13.5px; }
+.axis__label { width: 128px; flex: none; font-weight: 600; color: var(--ink-2); }
+.axis__dots { display: flex; gap: 4px; flex: none; }
+.axis__dot { width: 26px; height: 7px; border-radius: var(--r-full); background: var(--surface-3); display: block; }
+.axis__dot--on { background: var(--accent); }
+.axis__hint { flex: 1; }
+@media (max-width: 560px) {
+  .axis { flex-wrap: wrap; gap: 6px 10px; }
+  .axis__label { width: auto; }
+  .axis__hint { flex-basis: 100%; }
+}
+
+.fb-list { margin: 6px 0 0; padding-left: 18px; font-size: 13.8px; line-height: 1.55; color: var(--ink-2); }
+.fb-list li + li { margin-top: 4px; }
+.chip--sm { padding: 3px 10px; font-size: 12px; }
+.card--ask { border-color: var(--accent); background: linear-gradient(180deg, var(--accent-soft), var(--surface) 70%); }
+
 /* ---------------------------------------------------------------- drill */
 .qcard.drill { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-md); }
 .drill .qcard__head { background: var(--accent-soft); border-bottom-color: transparent; }
@@ -384,6 +403,32 @@ details.reveal > .reveal__body { padding: 0 18px 16px; border-top: 1px solid var
 .blank:disabled { border-bottom-color: var(--line-strong); }
 
 .callout--ok { background: var(--good-soft); border-color: transparent; }
+.opt--wrong { border-color: var(--bad); background: var(--bad-soft); }
+.jol__btn--picked { border-color: var(--accent); background: var(--accent-soft); }
+
+/* nối cặp */
+.match { display: flex; flex-direction: column; gap: 10px; }
+.match__row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.match__left { flex: 1; min-width: 220px; font-size: 14.2px; line-height: 1.5; }
+.match__sel {
+  flex: 1; min-width: 200px; padding: 9px 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong); background: var(--surface); font-size: 13.5px;
+}
+.match__sel:focus { border-color: var(--accent); outline: none; }
+
+/* sắp xếp */
+.order { list-style: none; counter-reset: o; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.order__item {
+  counter-increment: o; display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+  border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); font-size: 14.2px;
+}
+.order__item::before {
+  content: counter(o); flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+  display: grid; place-items: center;
+}
+.order__item--right { background: var(--good-soft); border-color: transparent; }
+.order__item--wrong { background: var(--bad-soft); border-color: transparent; }
 
 /* ---------------------------------------------------------------- markdown */
 .md { font-size: 15.2px; line-height: 1.68; }

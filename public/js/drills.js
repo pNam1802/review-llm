@@ -31,12 +31,17 @@ function setStat(qid, pid, st) {
  * Cập nhật thống kê từng ý sau khi chấm cả câu, rồi xếp lịch luyện cho ý còn hụt.
  * Trả về danh sách ý yếu (đã sắp theo mức độ cần luyện).
  */
-export function recordGrade(question, gradePoints, overall) {
+export function recordGrade(question, grade) {
+  const gradePoints = grade?.points || [];
+  const level = grade?.level || 'roi-rac';
+  const axes = grade?.axes || {};
+  const overall = grade?.overall ?? 0;
+
   const weak = [];
   question.points.forEach((pt, i) => {
     const pid = pidOf(pt, i);
     const st = { ...getStat(question.id, pid) };
-    const status = gradePoints?.[i]?.status || 'miss';
+    const status = gradePoints[i]?.status || 'miss';
     if (status === 'hit') st.h += 1;
     else if (status === 'partial') st.p += 1;
     else st.m += 1;
@@ -46,31 +51,57 @@ export function recordGrade(question, gradePoints, overall) {
     if (status !== 'hit') weak.push({ idx: i, pid, point: pt, status, st });
   });
 
-  // Ý bị hụt nhiều lần thì vẫn luyện kể cả khi tổng điểm đã cao.
-  const dai = question.points.length >= 5;
-  const canLuyen = overall < NGUONG_LUYEN || weak.some((w) => w.st.m >= 2);
-  if (!canLuyen || !weak.length) return [];
-
-  // miss nặng hơn partial; ý hụt nhiều lần được ưu tiên
-  weak.sort((a, b) => (b.st.m * 2 + (b.status === 'miss' ? 3 : 1)) - (a.st.m * 2 + (a.status === 'miss' ? 3 : 1)));
-  const chon = weak.slice(0, dai ? 2 : 1); // câu dài luyện 2 ý, câu ngắn 1 ý
-
   state.data.drills = state.data.drills || [];
-  for (const w of chon) queueDrill(question.id, w.pid, 'now');
-  // Câu dài mà hụt từ 2 ý trở lên: luyện khung xương trước đã
-  if (dai && weak.length >= 2) queueDrill(question.id, '__skeleton__', 'now');
-  return chon;
+  const dai = question.points.length >= 5;
+  const queued = [];
+
+  // 1. Hiểu SAI thì sửa trước mọi thứ khác - sai còn tệ hơn thiếu.
+  const hieuSai = (grade?.misconceptions || [])[0];
+  if (hieuSai) {
+    queueDrill(question.id, '__misconception__', 'now', Date.now(), { force: 'misconception', text: hieuSai });
+    queued.push({ pid: '__misconception__' });
+  }
+
+  // 2. Đúng nhưng chưa nói được VÌ SAO: luyện cơ chế, không luyện thuộc thêm ý.
+  const chuaSauSac = level === 'lac' || level === 'roi-rac' || (Number(axes.why) || 0) <= 2;
+  if (chuaSauSac && level !== 'lac') {
+    const cot = coreIdx(question);
+    queueDrill(question.id, pidOf(question.points[cot], cot), 'now', Date.now(), { force: 'why' });
+    queued.push({ pid: pidOf(question.points[cot], cot) });
+  }
+
+  // 3. Ý cốt lõi bị hụt hẳn thì mới luyện lại nội dung ý đó.
+  const dangKe = weak.filter((w) => (w.point.w || 1) >= 3 || w.st.m >= 2 || level === 'lac');
+  if (dangKe.length) {
+    dangKe.sort((a, b) => (b.st.m * 2 + (b.status === 'miss' ? 3 : 1)) - (a.st.m * 2 + (a.status === 'miss' ? 3 : 1)));
+    for (const w of dangKe.slice(0, dai ? 2 : 1)) {
+      queueDrill(question.id, w.pid, 'now');
+      queued.push(w);
+    }
+    if (dai && level === 'lac') queueDrill(question.id, '__skeleton__', 'now');
+  }
+  return queued;
 }
 
-function queueDrill(qid, pid, stage, due = Date.now()) {
+/** Ý cốt lõi = ý có trọng số cao nhất (thường là ý định nghĩa/bản chất). */
+function coreIdx(question) {
+  let best = 0;
+  question.points.forEach((p, i) => {
+    if ((p.w || 1) > (question.points[best].w || 1)) best = i;
+  });
+  return best;
+}
+
+function queueDrill(qid, pid, stage, due = Date.now(), extra = null) {
   state.data.drills = state.data.drills || [];
   const found = state.data.drills.find((d) => d.qid === qid && d.pid === pid);
   if (found) {
     found.stage = stage;
     found.due = due;
+    if (extra) Object.assign(found, extra);
     return found;
   }
-  const d = { qid, pid, stage, due, tries: 0 };
+  const d = { qid, pid, stage, due, tries: 0, ...(extra || {}) };
   state.data.drills.push(d);
   return d;
 }
@@ -124,8 +155,10 @@ export function completeDrill(qid, pid, passed) {
  * Bậc thang giàn giáo: mỗi lần luyện lại ý đó thì bớt trợ giúp đi một tầng.
  * 0 lần: nhận ra   1 lần: điền khuyết   2 lần: tự viết   3+: giảng lại
  */
-export function pickType(question, pid) {
+export function pickType(question, pid, force) {
+  if (force) return force;
   if (pid === '__skeleton__') return 'skeleton';
+  if (pid === '__misconception__') return 'misconception';
   const st = getStat(question.id, pid);
   const d = st.d || 0;
   if (d === 0) return 'recognize';
@@ -134,7 +167,7 @@ export function pickType(question, pid) {
   return 'teach';
 }
 
-export const needsLLM = (type) => ['point', 'teach', 'skeleton'].includes(type);
+export const needsLLM = (type) => ['point', 'teach', 'skeleton', 'why', 'misconception'].includes(type);
 
 /* ------------------------------------------------------------ dựng bài luyện */
 const STOP_RAW = `và của là các một những cho khi thì mà với được có không nên phải trong ra vào từ đến này đó nếu vì do như hoặc hay cũng chỉ rất nhiều ít theo về trên dưới sau trước bằng để nêu nói cần tại sao gì nào đâu bao nhiêu hãy ví dụ tức chính đang sẽ đã bị bởi nhưng còn nữa vẫn ai mình bạn thể việc cách phần nhất hơn cùng đều mỗi thêm làm dùng`;
@@ -202,8 +235,29 @@ export function pickBlanks(text, max = 3) {
 }
 
 /** Dựng một bài luyện hoàn chỉnh để giao diện hiển thị. */
-export function buildDrill(question, pid, allQuestions) {
-  const type = pickType(question, pid);
+export function buildDrill(question, pid, allQuestions, item = null) {
+  const type = pickType(question, pid, item?.force);
+
+  if (type === 'misconception') {
+    return {
+      type, qid: question.id, pid, question,
+      title: 'Sửa chỗ hiểu lệch',
+      prompt: `Nhận định sau **sai ở đâu**? Sửa lại cho đúng bằng 1–2 câu.\n\n> ${item?.text || (question.traps || [])[0] || ''}`,
+      why: 'Hiểu sai nguy hiểm hơn hiểu thiếu, vì bạn không biết là mình đang sai. Nói ra được chỗ sai thì mới gỡ được.',
+    };
+  }
+
+  if (type === 'why') {
+    const idxW = question.points.findIndex((pt, i) => pidOf(pt, i) === pid);
+    const pointW = question.points[idxW];
+    return {
+      type, qid: question.id, pid, question, point: pointW, idx: idxW,
+      title: 'Nói được vì sao',
+      prompt: `Bạn đã nêu đúng **“${(pointW?.text || '').split(/[\s:,–—-]+/).slice(0, 5).join(' ')}…”**.\n\nGiờ trả lời tiếp: **vì sao lại như vậy?** Điều gì sẽ hỏng nếu bỏ ý này đi? Viết 2–3 câu.`,
+      why: 'Nêu tên khái niệm là nhớ; nói được vì sao mới là hiểu. Đây là bước ngắn nhất từ “thuộc” sang “hiểu”.',
+    };
+  }
+
   if (type === 'skeleton') {
     return {
       type, qid: question.id, pid, question,

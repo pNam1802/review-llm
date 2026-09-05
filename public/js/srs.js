@@ -215,15 +215,19 @@ export function localGrade(question, answer) {
   });
 
   const overall = Math.round((earned / (total || 1)) * 100);
+  // Không có LLM thì chỉ đếm được từ khóa - tức là chỉ đo được mức "nhớ".
+  // Nói thẳng điều đó thay vì giả vờ đang đo mức độ hiểu.
   return {
+    level: overall >= 40 ? 'roi-rac' : 'lac',
+    axes: null, // cố tình bỏ trống: máy không đánh giá được chiều sâu
     overall,
-    verdict: overall >= 90 ? 'excellent' : overall >= 70 ? 'good' : overall >= 50 ? 'partial' : overall > 0 ? 'weak' : 'blank',
-    points,
+    strengths: [],
+    gaps: [],
     misconceptions: [],
-    missing_summary: 'Đây là ước lượng theo từ khóa, không hiểu ngữ nghĩa. Hãy đọc đáp án mẫu và tự soát từng ý.',
-    feedback: 'Chưa bật chấm bằng LLM nên hệ thống chỉ so khớp từ khóa. Bạn hãy tự đánh dấu từng ý bên dưới cho chính xác.',
-    upgrade: 'Đọc kỹ phần "Vì sao quan trọng" rồi thử diễn đạt lại đáp án bằng lời của mình.',
-    suggested_rating: overall < 50 ? 'again' : overall < 70 ? 'hard' : overall < 90 ? 'good' : 'easy',
+    points,
+    feedback: 'Chưa bật chấm bằng LLM nên hệ thống chỉ so khớp từ khóa — nó KHÔNG đánh giá được bạn hiểu tới đâu. Hãy tự đối chiếu với đáp án mẫu rồi tự chọn mức nhớ bên dưới.',
+    next_question: 'Tự hỏi mình: vì sao điều này lại đúng? Nếu bỏ ý quan trọng nhất đi thì hỏng ở đâu?',
+    suggested_rating: overall < 45 ? 'again' : overall < 70 ? 'hard' : 'good',
     offline: true,
   };
 }
