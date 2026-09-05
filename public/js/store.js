@@ -30,7 +30,7 @@ const defaults = () => ({
   streak: { current: 0, best: 0, last: null },
   pointStats: {},          // 'câu:ý' -> { h, p, m, last, t, d } - theo dõi từng Ý một
   drills: [],              // hàng đợi bài luyện: { qid, pid, stage, due, tries }
-  notes: [],               // sổ tay: { id, t, updated, text, qid, pinned }
+  notes: [],               // sổ tay: { id, t, updated, title, tag, text, qid, pinned }
 });
 
 /* ------------------------------------------------------------------ nạp */
@@ -67,7 +67,8 @@ function migrate(d) {
   out.streak = { ...base.streak, ...(d.streak || {}) };
   out.pointStats = d.pointStats || {};
   out.drills = d.drills || [];
-  out.notes = d.notes || [];
+  // ghi chú cũ chưa có tiêu đề/nhãn thì gán mặc định
+  out.notes = (d.notes || []).map((n) => ({ title: '', tag: 'note', ...n }));
   return out;
 }
 
@@ -158,11 +159,13 @@ function updateStreak(key) {
 
 export const notes = () => state.data.notes || [];
 
-export function addNote({ text, qid = null }) {
+export function addNote({ text, title = '', tag = 'note', qid = null }) {
   const n = {
     id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     t: Date.now(),
     updated: Date.now(),
+    title: String(title || '').trim(),
+    tag: tag || 'note',
     text: String(text || ''),
     qid: qid ?? null,
     pinned: false,

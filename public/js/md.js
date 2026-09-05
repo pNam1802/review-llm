@@ -17,6 +17,7 @@ function inline(text) {
     return OPEN + (codes.length - 1) + CLOSE;
   });
   s = s
+    .replace(/==([^=]+)==/g, '<mark>$1</mark>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');

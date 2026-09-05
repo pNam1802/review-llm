@@ -150,9 +150,24 @@ phân biệt — phần tự luận mới là chỗ đo được bạn có dùng
 
 Ngăn kéo bên phải, mở ở bất kỳ màn hình nào bằng phím **`N`**, nút ở thanh bên, hoặc nút tròn góc dưới phải.
 
+- **Tiêu đề** cho mỗi ghi chú để danh sách quét được bằng mắt. Bỏ trống cũng được — hệ thống
+  tự lấy dòng đầu làm tiêu đề (và không hiện lại dòng đó trong phần nội dung).
+- **Nhãn màu** phân loại theo mục đích học, không phải màu mè cho vui — mỗi nhãn là một viền màu
+  bên trái thẻ và lọc được bằng một cú bấm:
+
+  | Nhãn | Dùng khi |
+  |---|---|
+  | 📝 Ghi chú | ghi chép thường |
+  | 💡 Hiểu ra | khoảnh khắc "à, hóa ra là vậy" — thứ đáng giữ nhất |
+  | ⚠️ Dễ nhầm | chỗ bạn từng hiểu sai, hoặc hai khái niệm hay lẫn |
+  | 🔥 Phải nhớ | thứ nhất định không được quên |
+  | ❓ Còn thắc mắc | câu hỏi chưa có lời giải, để quay lại sau |
+
+- **Tô sáng** trong nội dung bằng `==bọc hai dấu bằng==`.
+- Nội dung dài tự **thu gọn 3 dòng**, bấm là mở ra — để cuộn danh sách vẫn nhanh.
 - **Ghi chú gắn theo câu**: mở sổ tay từ một câu (hoặc từ màn hình chấm bài) thì ghi chú tự gắn vào câu đó;
   sau này vào lại câu, nút hiện luôn số ghi chú bạn đã có.
-- **Ghim** những điều hay quên lên đầu, **tìm kiếm** trong toàn bộ sổ tay, sửa/xóa tại chỗ.
+- **Ghim** những điều hay quên lên đầu, **tìm kiếm** trong toàn bộ sổ tay, sửa/xóa/đổi nhãn tại chỗ.
 - Viết được **markdown** (đậm, gạch đầu dòng, code) và nằm trong file sao lưu chung.
 - Màn hình rộng (≥1200px) thì sổ tay **đẩy nội dung sang trái** thay vì phủ lên — để vừa đọc câu hỏi vừa xem ghi chú.
 

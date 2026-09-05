@@ -5,27 +5,47 @@
 // "chép đáp án mẫu vào sổ" — chỉ có ô trống để bạn diễn đạt lại theo cách hiểu
 // của mình. Đúng lúc bạn vừa quên rồi vừa được nhắc lại chính là lúc ghi chú
 // đọng nhất.
+//
+// Tiêu đề + nhãn màu là để QUÉT được: sổ tay chỉ hữu ích khi mở ra là thấy ngay
+// cái mình cần, không phải đọc lại từ đầu. Nhãn cũng là một cách phân loại có
+// ý nghĩa học tập (hiểu ra / dễ nhầm / phải nhớ / còn thắc mắc) chứ không phải
+// màu mè cho vui.
 import { state, notes, addNote, updateNote, deleteNote, notesFor } from '../store.js';
 import { md } from '../md.js';
 import { esc, toast } from '../ui.js';
 import { normalize } from '../srs.js';
 
-let filter = 'all'; // all | pinned | question
+export const TAGS = {
+  note: { label: 'Ghi chú', icon: '📝', color: 'var(--line-strong)' },
+  insight: { label: 'Hiểu ra', icon: '💡', color: 'var(--good)' },
+  confuse: { label: 'Dễ nhầm', icon: '⚠️', color: 'var(--warn)' },
+  must: { label: 'Phải nhớ', icon: '🔥', color: 'var(--bad)' },
+  ask: { label: 'Còn thắc mắc', icon: '❓', color: 'var(--accent)' },
+};
+const TAG_IDS = Object.keys(TAGS);
+
+let filter = 'all'; // all | pinned | question | tag:<id>
 let query = '';
-let editing = null; // id đang sửa
+let editing = null;
+let newTag = 'note';
+let expanded = new Set();
 
 const fmtNgay = (t) => {
   const d = new Date(t);
-  const homNay = new Date();
-  const cungNgay = d.toDateString() === homNay.toDateString();
+  const cungNgay = d.toDateString() === new Date().toDateString();
   return cungNgay
     ? `hôm nay ${d.toTimeString().slice(0, 5)}`
     : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' });
 };
 
-export function isOpen() {
-  return state.ui.notesOpen;
-}
+/** Không có tiêu đề thì lấy tạm dòng đầu, để danh sách vẫn quét được. */
+const tieuDe = (n) => {
+  if (n.title) return n.title;
+  const dong = String(n.text || '').split('\n').find((l) => l.trim());
+  return (dong || '').replace(/^[#>\-*\s]+/, '').replace(/[*=`]/g, '').slice(0, 70) || '(chưa có nội dung)';
+};
+
+export const isOpen = () => state.ui.notesOpen;
 
 export function toggleNotes(open, { qid } = {}) {
   state.ui.notesOpen = open ?? !state.ui.notesOpen;
@@ -34,13 +54,23 @@ export function toggleNotes(open, { qid } = {}) {
     filter = 'question';
   }
   paintNotes();
-  if (state.ui.notesOpen) {
-    setTimeout(() => document.querySelector('#noteInput')?.focus(), 120);
-  }
+  if (state.ui.notesOpen) setTimeout(() => document.querySelector('#noteTitle')?.focus(), 120);
 }
 
-/** Số ghi chú của câu đang mở — dùng để hiện chấm báo trên nút. */
 export const countForCurrent = () => (state.ui.qid ? notesFor(state.ui.qid).length : 0);
+
+function locDanhSach() {
+  const qid = state.ui.qid;
+  let ds = notes();
+  if (filter === 'pinned') ds = ds.filter((n) => n.pinned);
+  else if (filter === 'question') ds = qid ? notesFor(qid) : [];
+  else if (filter.startsWith('tag:')) ds = ds.filter((n) => (n.tag || 'note') === filter.slice(4));
+  if (query.trim()) {
+    const nq = normalize(query);
+    ds = ds.filter((n) => normalize(`${n.title || ''} ${n.text}`).includes(nq) || String(n.qid || '').includes(query.trim()));
+  }
+  return [...ds].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
+}
 
 export function paintNotes() {
   const host = document.querySelector('#notes');
@@ -62,14 +92,8 @@ export function paintNotes() {
   const qid = state.ui.qid;
   const q = qid ? state.byId.get(qid) : null;
   const tatCa = notes();
-  let danhSach = tatCa;
-  if (filter === 'pinned') danhSach = tatCa.filter((n) => n.pinned);
-  if (filter === 'question') danhSach = qid ? notesFor(qid) : [];
-  if (query.trim()) {
-    const nq = normalize(query);
-    danhSach = danhSach.filter((n) => normalize(n.text).includes(nq) || String(n.qid || '').includes(query.trim()));
-  }
-  danhSach = [...danhSach].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
+  const ds = locDanhSach();
+  const dem = (id) => tatCa.filter((n) => (n.tag || 'note') === id).length;
 
   host.innerHTML = `
     <div class="notes__head">
@@ -80,53 +104,79 @@ export function paintNotes() {
     </div>
 
     <div class="notes__new">
-      ${q ? `<div class="tiny muted" style="margin-bottom:6px">Gắn vào <b>câu ${q.id}</b> — ${esc(q.q.slice(0, 60))}${q.q.length > 60 ? '…' : ''}</div>` : ''}
+      ${q ? `<div class="tiny muted" style="margin-bottom:6px">Gắn vào <b>câu ${q.id}</b> — ${esc(q.q.slice(0, 55))}${q.q.length > 55 ? '…' : ''}</div>` : ''}
+      <input class="search notes__title" id="noteTitle" placeholder="Tiêu đề — để trống cũng được" maxlength="90">
       <textarea id="noteInput" class="answer-area notes__input" rows="3"
         placeholder="${q ? 'Viết lại ý này bằng lời của bạn…' : 'Ghi nhanh một điều bạn muốn nhớ…'}"></textarea>
-      <div class="row" style="margin-top:8px">
+      <div class="tagpick">
+        ${TAG_IDS.map((id) => `<button class="tagchip tagchip--${id}" data-newtag="${id}" aria-pressed="${newTag === id}"
+          style="--tag:${TAGS[id].color}">${TAGS[id].icon} ${TAGS[id].label}</button>`).join('')}
+      </div>
+      <div class="row" style="margin-top:10px">
         <button class="btn btn--primary btn--sm" data-note="add">Lưu <span class="kbd">Ctrl↵</span></button>
         ${q ? `<label class="tiny muted" style="display:flex;align-items:center;gap:6px">
           <input type="checkbox" id="noteAttach" checked> gắn vào câu ${q.id}</label>` : ''}
         <span class="grow"></span>
-        <span class="tiny muted">Viết bằng lời của mình sẽ nhớ lâu hơn chép lại</span>
+        <span class="tiny muted" title="Bọc bằng hai dấu bằng để tô sáng">Dùng <code>==tô sáng==</code></span>
       </div>
     </div>
 
     <div class="notes__tools">
       <input class="search" id="noteSearch" placeholder="Tìm trong sổ tay…" value="${esc(query)}">
       <div class="row" style="margin-top:8px">
-        <button class="chip chip--sm" data-filter="all" aria-pressed="${filter === 'all'}">Tất cả</button>
-        <button class="chip chip--sm" data-filter="pinned" aria-pressed="${filter === 'pinned'}">📌 Đã ghim</button>
+        <button class="chip chip--sm" data-filter="all" aria-pressed="${filter === 'all'}">Tất cả ${tatCa.length}</button>
+        <button class="chip chip--sm" data-filter="pinned" aria-pressed="${filter === 'pinned'}">📌 ${tatCa.filter((n) => n.pinned).length}</button>
         ${qid ? `<button class="chip chip--sm" data-filter="question" aria-pressed="${filter === 'question'}">Câu ${qid}</button>` : ''}
+      </div>
+      <div class="row" style="margin-top:6px">
+        ${TAG_IDS.filter((id) => dem(id)).map((id) => `<button class="chip chip--sm" data-filter="tag:${id}"
+          aria-pressed="${filter === `tag:${id}`}">${TAGS[id].icon} ${TAGS[id].label} ${dem(id)}</button>`).join('')}
       </div>
     </div>
 
-    <div class="notes__list">
-      ${danhSach.length ? danhSach.map(item).join('') : trong()}
-    </div>`;
+    <div class="notes__list">${ds.length ? ds.map(item).join('') : trong()}</div>`;
 }
 
 const trong = () => `
   <div class="empty" style="padding:34px 16px">
     <div class="empty__icon">🗒️</div>
-    <p class="small muted" style="max-width:30ch;margin:0 auto">
-      ${query ? 'Không có ghi chú nào khớp.' : 'Chưa có ghi chú nào. Lúc vừa quên một câu rồi được nhắc lại chính là lúc ghi chú đọng nhất.'}
+    <p class="small muted" style="max-width:32ch;margin:0 auto">
+      ${query || filter !== 'all'
+    ? 'Không có ghi chú nào khớp.'
+    : 'Chưa có ghi chú nào. Lúc vừa quên một câu rồi được nhắc lại chính là lúc ghi chú đọng nhất.'}
     </p>
   </div>`;
 
 function item(n) {
+  const tag = TAGS[n.tag] || TAGS.note;
   if (editing === n.id) {
-    return `<article class="note note--edit">
-      <textarea class="answer-area notes__input" data-edit="${n.id}" rows="4">${esc(n.text)}</textarea>
-      <div class="row" style="margin-top:8px">
+    return `<article class="note note--edit" style="--tag:${tag.color}">
+      <input class="search notes__title" data-edit-title="${n.id}" value="${esc(n.title || '')}" placeholder="Tiêu đề">
+      <textarea class="answer-area notes__input" data-edit="${n.id}" rows="5">${esc(n.text)}</textarea>
+      <div class="tagpick">
+        ${TAG_IDS.map((id) => `<button class="tagchip" data-edittag="${id}" data-id="${n.id}"
+          aria-pressed="${(n.tag || 'note') === id}" style="--tag:${TAGS[id].color}">${TAGS[id].icon} ${TAGS[id].label}</button>`).join('')}
+      </div>
+      <div class="row" style="margin-top:10px">
         <button class="btn btn--primary btn--sm" data-note="save" data-id="${n.id}">Lưu</button>
         <button class="btn btn--ghost btn--sm" data-note="cancel">Hủy</button>
       </div>
     </article>`;
   }
   const q = n.qid ? state.byId.get(n.qid) : null;
-  return `<article class="note${n.pinned ? ' note--pin' : ''}">
-    <div class="note__body md">${md(n.text)}</div>
+  const mo = expanded.has(n.id);
+  // Không đặt tiêu đề thì dòng đầu đã được dùng làm tiêu đề rồi — bỏ nó khỏi
+  // phần nội dung để khỏi hiện hai lần.
+  const than = n.title ? n.text : String(n.text || '').split('\n').slice(1).join('\n').trim();
+  const dai = than.length > 220;
+  return `<article class="note${n.pinned ? ' note--pin' : ''}" style="--tag:${tag.color}">
+    <div class="note__top">
+      <span class="note__tag" title="${tag.label}">${tag.icon}</span>
+      <h3 class="note__title">${esc(tieuDe(n))}</h3>
+      ${n.pinned ? '<span class="note__pinned" title="Đã ghim">📌</span>' : ''}
+    </div>
+    ${than ? `<div class="note__body md${dai && !mo ? ' note__body--clamp' : ''}" ${dai ? `data-toggle="${n.id}"` : ''}>${md(than)}</div>` : ''}
+    ${dai ? `<button class="note__more" data-toggle="${n.id}">${mo ? 'Thu gọn' : 'Xem thêm'}</button>` : ''}
     <div class="note__foot">
       ${q ? `<button class="badge badge--accent" data-note="open" data-id="${n.id}" title="${esc(q.q)}">Câu ${q.id}</button>` : ''}
       <span class="tiny muted">${fmtNgay(n.updated)}</span>
@@ -144,22 +194,41 @@ export function wireNotes(go) {
   if (!host) return;
 
   host.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-note], [data-filter]');
+    const t = e.target.closest('[data-note], [data-filter], [data-newtag], [data-edittag], [data-toggle]');
     if (!t) return;
     const id = t.dataset.id;
+
     if (t.dataset.filter) {
       filter = t.dataset.filter;
       return paintNotes();
     }
+    if (t.dataset.newtag) {
+      newTag = t.dataset.newtag;
+      return paintNotes();
+    }
+    if (t.dataset.edittag) {
+      updateNote(t.dataset.id, { tag: t.dataset.edittag });
+      return paintNotes();
+    }
+    if (t.dataset.toggle) {
+      const k = t.dataset.toggle;
+      if (expanded.has(k)) expanded.delete(k);
+      else expanded.add(k);
+      return paintNotes();
+    }
+
     switch (t.dataset.note) {
       case 'close': return toggleNotes(false);
       case 'add': {
         const el = host.querySelector('#noteInput');
+        const tt = host.querySelector('#noteTitle');
         const text = el.value.trim();
-        if (!text) return toast('Ghi chú đang trống.', 1500);
+        if (!text && !tt.value.trim()) return toast('Ghi chú đang trống.', 1500);
         const gan = host.querySelector('#noteAttach');
-        addNote({ text, qid: gan && gan.checked ? state.ui.qid : null });
+        addNote({ text, title: tt.value, tag: newTag, qid: gan && gan.checked ? state.ui.qid : null });
         el.value = '';
+        tt.value = '';
+        newTag = 'note';
         toast('Đã lưu vào sổ tay.', 1400);
         return paintNotes();
       }
@@ -171,14 +240,15 @@ export function wireNotes(go) {
       case 'edit': editing = id; return paintNotes();
       case 'cancel': editing = null; return paintNotes();
       case 'save': {
-        const el = host.querySelector(`[data-edit="${id}"]`);
-        updateNote(id, { text: el.value.trim() });
+        updateNote(id, {
+          text: host.querySelector(`[data-edit="${id}"]`).value.trim(),
+          title: host.querySelector(`[data-edit-title="${id}"]`).value.trim(),
+        });
         editing = null;
         return paintNotes();
       }
       case 'del': {
-        const n = notes().find((x) => x.id === id);
-        if (n && confirm('Xóa ghi chú này?')) deleteNote(id);
+        if (confirm('Xóa ghi chú này?')) deleteNote(id);
         return paintNotes();
       }
       case 'open': {
@@ -194,23 +264,22 @@ export function wireNotes(go) {
   });
 
   host.addEventListener('input', (e) => {
-    if (e.target.id === 'noteSearch') {
-      query = e.target.value;
-      const list = host.querySelector('.notes__list');
-      const nq = normalize(query);
-      const rows = notes()
-        .filter((n) => (filter === 'pinned' ? n.pinned : filter === 'question' ? n.qid === state.ui.qid : true))
-        .filter((n) => !nq || normalize(n.text).includes(nq))
-        .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
-      if (list) list.innerHTML = rows.length ? rows.map(item).join('') : trong();
-    }
+    if (e.target.id !== 'noteSearch') return;
+    query = e.target.value;
+    const list = host.querySelector('.notes__list');
+    const ds = locDanhSach();
+    if (list) list.innerHTML = ds.length ? ds.map(item).join('') : trong();
   });
 
   host.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      const nut = host.querySelector('[data-note="add"], [data-note="save"]');
-      nut?.click();
+      host.querySelector('[data-note="add"], [data-note="save"]')?.click();
+    }
+    // Enter ở ô tiêu đề thì nhảy xuống phần nội dung cho liền mạch
+    if (e.key === 'Enter' && e.target.id === 'noteTitle') {
+      e.preventDefault();
+      host.querySelector('#noteInput')?.focus();
     }
   });
 
