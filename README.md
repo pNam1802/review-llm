@@ -146,9 +146,23 @@ dạng này, cảm giác "đã thuộc" sẽ đến sớm hơn thực tế. Vì 
 chỉ số "điểm bài tự luận", và **không** đụng vào lịch ôn của thẻ. Nó là món đổi vị và bài luyện
 phân biệt — phần tự luận mới là chỗ đo được bạn có dùng được kiến thức hay không.
 
+## Sổ tay 📝
+
+Ngăn kéo bên phải, mở ở bất kỳ màn hình nào bằng phím **`N`**, nút ở thanh bên, hoặc nút tròn góc dưới phải.
+
+- **Ghi chú gắn theo câu**: mở sổ tay từ một câu (hoặc từ màn hình chấm bài) thì ghi chú tự gắn vào câu đó;
+  sau này vào lại câu, nút hiện luôn số ghi chú bạn đã có.
+- **Ghim** những điều hay quên lên đầu, **tìm kiếm** trong toàn bộ sổ tay, sửa/xóa tại chỗ.
+- Viết được **markdown** (đậm, gạch đầu dòng, code) và nằm trong file sao lưu chung.
+- Màn hình rộng (≥1200px) thì sổ tay **đẩy nội dung sang trái** thay vì phủ lên — để vừa đọc câu hỏi vừa xem ghi chú.
+
+Cố ý **không có nút "chép đáp án mẫu vào sổ"**: ghi chú tự viết bằng lời của mình được nhớ tốt hơn hẳn
+đoạn chép lại (generation effect). Thời điểm ghi đọng nhất là ngay sau khi bạn vừa quên một câu rồi
+được nhắc lại — nên ở màn hình chấm bài có sẵn nút *"📝 Ghi vào sổ tay"*.
+
 ### Phím tắt
 
-`Ctrl`+`Enter` nộp bài · `1`–`4` đánh giá mức nhớ · `T` đổi sáng/tối · `Esc` thoát buổi học
+`Ctrl`+`Enter` nộp bài · `1`–`4` đánh giá mức nhớ · `N` sổ tay · `T` đổi sáng/tối · `Esc` thoát / đóng sổ tay
 
 ---
 
@@ -190,7 +204,7 @@ public/
     exercises.js            sinh 5 dạng bài ngắn từ chính nội dung câu hỏi
     metrics.js              số liệu tiến độ
     md.js  ui.js            markdown + tiện ích, biểu đồ SVG
-    views/                  home · study · drill · quiz · library · stats · settings
+    views/                  home · study · drill · quiz · notes · library · stats · settings
 data/progress.json          tiến độ học của bạn (đã gitignore)
 ```
 
@@ -220,7 +234,7 @@ Server tự nạp lại nội dung mỗi lần trình duyệt gọi `/api/conten
 
 ## Sao lưu
 
-Vào **Cài đặt → Tải file sao lưu** để xuất JSON, hoặc copy trực tiếp `data/progress.json`. Nạp lại bằng **Nạp từ file sao lưu**.
+Vào **Cài đặt → Tải file sao lưu** để xuất JSON (gồm cả sổ tay), hoặc copy trực tiếp `data/progress.json`. Nạp lại bằng **Nạp từ file sao lưu**.
 
 ---
 

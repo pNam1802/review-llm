@@ -9,6 +9,8 @@ export const state = {
   byId: new Map(),
   health: { hasKey: false, model: '', effort: '' },
   data: null,
+  // trạng thái tạm của giao diện, không lưu xuống đĩa
+  ui: { qid: null, notesOpen: false },
 };
 
 const defaults = () => ({
@@ -28,6 +30,7 @@ const defaults = () => ({
   streak: { current: 0, best: 0, last: null },
   pointStats: {},          // 'câu:ý' -> { h, p, m, last, t, d } - theo dõi từng Ý một
   drills: [],              // hàng đợi bài luyện: { qid, pid, stage, due, tries }
+  notes: [],               // sổ tay: { id, t, updated, text, qid, pinned }
 });
 
 /* ------------------------------------------------------------------ nạp */
@@ -64,6 +67,7 @@ function migrate(d) {
   out.streak = { ...base.streak, ...(d.streak || {}) };
   out.pointStats = d.pointStats || {};
   out.drills = d.drills || [];
+  out.notes = d.notes || [];
   return out;
 }
 
@@ -147,6 +151,41 @@ function updateStreak(key) {
   st.last = key;
   st.best = Math.max(st.best || 0, st.current);
 }
+
+/* ---------------------------------------------------------------- sổ tay */
+// Ghi chú TỰ VIẾT nhớ tốt hơn hẳn đoạn chép lại (generation effect), nên ở đây
+// không có nút "chép đáp án vào sổ" - chỉ có ô trống để bạn diễn đạt lại.
+
+export const notes = () => state.data.notes || [];
+
+export function addNote({ text, qid = null }) {
+  const n = {
+    id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    t: Date.now(),
+    updated: Date.now(),
+    text: String(text || ''),
+    qid: qid ?? null,
+    pinned: false,
+  };
+  state.data.notes = [n, ...notes()];
+  save();
+  return n;
+}
+
+export function updateNote(id, patch) {
+  const n = notes().find((x) => x.id === id);
+  if (!n) return null;
+  Object.assign(n, patch, { updated: Date.now() });
+  save();
+  return n;
+}
+
+export function deleteNote(id) {
+  state.data.notes = notes().filter((x) => x.id !== id);
+  save();
+}
+
+export const notesFor = (qid) => notes().filter((n) => n.qid === qid);
 
 /* ------------------------------------------------------------------ API */
 export async function gradeAnswer(questionId, answer) {

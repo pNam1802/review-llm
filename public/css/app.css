@@ -357,6 +357,63 @@ details.reveal > summary::before { content: "▸"; color: var(--ink-3); transiti
 details.reveal[open] > summary::before { transform: rotate(90deg); }
 details.reveal > .reveal__body { padding: 0 18px 16px; border-top: 1px solid var(--line); padding-top: 14px; }
 
+/* ---------------------------------------------------------------- sổ tay */
+.notes {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); z-index: 50;
+  background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column;
+  transform: translateX(101%); transition: transform .26s var(--ease);
+  visibility: hidden;
+}
+.notes--open { transform: none; visibility: visible; }
+.notes__head {
+  display: flex; align-items: center; gap: 8px; padding: 16px 18px;
+  border-bottom: 1px solid var(--line); font-size: 15px;
+}
+.notes__new { padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.notes__input { min-height: 0; font-size: 14.5px; padding: 11px 13px; background: var(--surface); }
+.notes__tools { padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.notes__list { flex: 1; overflow-y: auto; padding: 12px 18px 40px; display: flex; flex-direction: column; gap: 10px; }
+
+.note {
+  border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; background: var(--surface);
+}
+.note--pin { border-color: var(--accent); background: var(--accent-soft); }
+.note--edit { border-color: var(--accent); }
+.note__body { font-size: 14.2px; line-height: 1.6; }
+.note__body > *:last-child { margin-bottom: 0; }
+.note__foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+.note__act {
+  border: 0; background: none; cursor: pointer; font-size: 13px; padding: 3px 5px;
+  border-radius: 5px; opacity: .55; line-height: 1;
+}
+.note__act:hover { opacity: 1; background: var(--surface-2); }
+
+.notes-backdrop {
+  position: fixed; inset: 0; z-index: 45; background: rgba(10,10,8,.35);
+  opacity: 0; pointer-events: none; transition: opacity .26s var(--ease);
+}
+.notes-backdrop.show { opacity: 1; pointer-events: auto; }
+
+/* nút nổi để mở nhanh ở mọi màn hình */
+.notes-fab {
+  position: fixed; right: 20px; bottom: 22px; z-index: 40;
+  width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line-strong);
+  background: var(--surface); box-shadow: var(--shadow-md); cursor: pointer; font-size: 19px;
+  transition: transform .14s var(--ease), background .14s var(--ease);
+}
+.notes-fab:hover { background: var(--surface-2); transform: translateY(-2px); }
+.notes--open ~ .notes-fab, body:has(.notes--open) .notes-fab { display: none; }
+@media (max-width: 860px) { .notes-fab { bottom: calc(78px + env(safe-area-inset-bottom)); } }
+
+/* Màn đủ rộng: đẩy nội dung sang trái thay vì phủ lên - để vừa đọc câu hỏi vừa
+   xem ghi chú, đúng cái người ta cần khi "quên thì mở ra xem". */
+@media (min-width: 1200px) {
+  body.notes-open .app { padding-right: 400px; }
+  body.notes-open .notes-backdrop { display: none; }
+}
+.app { transition: padding-right .26s var(--ease); }
+
 /* ------------------------------------------------------- rubric 4 trục */
 .axes { display: grid; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .axis { display: flex; align-items: center; gap: 12px; font-size: 13.5px; }

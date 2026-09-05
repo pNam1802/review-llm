@@ -76,6 +76,7 @@ export function renderSettings(go, setTheme) {
         <div><span class="kbd">Ctrl</span> + <span class="kbd">↵</span> — nộp bài</div>
         <div><span class="kbd">1</span>…<span class="kbd">4</span> — đánh giá mức nhớ</div>
         <div><span class="kbd">T</span> — đổi giao diện sáng/tối</div>
+        <div><span class="kbd">N</span> — mở / đóng sổ tay</div>
         <div><span class="kbd">Esc</span> — thoát buổi học</div>
       </div>
     </section>

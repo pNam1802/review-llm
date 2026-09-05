@@ -3,6 +3,8 @@ import { mastery } from '../srs.js';
 import { md } from '../md.js';
 import { esc, masteryBar, pct, relTime } from '../ui.js';
 import { normalize } from '../srs.js';
+import { toggleNotes } from './notes.js';
+import { notesFor } from '../store.js';
 
 const dotColor = (m, seen) =>
   !seen ? 'var(--surface-3)' : m >= 0.75 ? 'var(--seq-5)' : m >= 0.5 ? 'var(--seq-4)' : m >= 0.25 ? 'var(--seq-3)' : 'var(--seq-2)';
@@ -125,6 +127,7 @@ export function renderQuestion(go, { id }) {
 
       <div class="row" style="margin:16px 0 4px">
         <button class="btn btn--primary" data-test="1">Tự kiểm tra câu này</button>
+        <button class="btn" data-note="1">📝 Sổ tay${notesFor(q.id).length ? ` (${notesFor(q.id).length})` : ''}</button>
         <span class="tiny muted">Thử viết đáp án trước khi đọc — hiệu quả hơn nhiều so với đọc thẳng.</span>
       </div>
     </article>
@@ -160,8 +163,9 @@ export function renderQuestion(go, { id }) {
   `;
 
   root.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-go], [data-id], [data-test]');
+    const t = e.target.closest('[data-go], [data-id], [data-test], [data-note]');
     if (!t) return;
+    if (t.dataset.note) return toggleNotes(true, { qid: q.id });
     if (t.dataset.test) return go('study', { mode: 'single', ids: [q.id] });
     if (t.dataset.id) return go('question', { id: Number(t.dataset.id) });
     if (t.dataset.go) return go(t.dataset.go);

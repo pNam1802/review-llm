@@ -7,6 +7,7 @@ import { renderLibrary, renderQuestion } from './views/library.js';
 import { renderStats } from './views/stats.js';
 import { renderSettings } from './views/settings.js';
 import { renderQuiz } from './views/quiz.js';
+import { toggleNotes, paintNotes, wireNotes, isOpen } from './views/notes.js';
 
 const NAV = [
   { id: 'home', icon: '🏠', label: 'Trang chủ' },
@@ -67,10 +68,15 @@ function render() {
     case 'settings': view = renderSettings(go, applyTheme); break;
     default: view = renderHome(go);
   }
+  // sổ tay cần biết đang xem câu nào để gắn ghi chú vào đúng chỗ
+  if (route === 'question') state.ui.qid = Number(routeArgs.id) || null;
+  else if (route !== 'study' && route !== 'quiz' && route !== 'exam') state.ui.qid = null;
+
   main.append(view);
   main.scrollTo?.(0, 0);
   window.scrollTo(0, 0);
   paintNav();
+  paintNotes();
   document.title = `${{ home: 'Trang chủ', study: 'Ôn tập', exam: 'Thi thử', library: 'Thư viện', stats: 'Tiến độ', settings: 'Cài đặt', quiz: 'Đổi món', question: 'Câu ' + (routeArgs.id ?? '') }[route] || ''} · Ôn tập AI Engineering`;
 }
 
@@ -105,7 +111,10 @@ function paintNav() {
     const nav = e.target.closest('[data-nav]');
     if (nav) go(nav.dataset.nav);
     if (e.target.closest('#themeBtn')) cycleTheme();
+    if (e.target.closest('#notesBtn') || e.target.closest('#notesFab')) toggleNotes();
   });
+
+  wireNotes(go);
 
   window.addEventListener('popstate', () => {
     const r = fromHash();
@@ -117,6 +126,8 @@ function paintNav() {
   document.addEventListener('keydown', (e) => {
     const typing = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
     if (e.key === 't' && !typing && !e.ctrlKey && !e.metaKey) cycleTheme();
+    if (e.key === 'n' && !typing && !e.ctrlKey && !e.metaKey) toggleNotes();
+    if (e.key === 'Escape' && isOpen()) return toggleNotes(false);
     if (e.key === 'Escape' && (route === 'study' || route === 'exam')) go('home');
     if (!typing && ['1', '2', '3', '4'].includes(e.key)) {
       const btn = document.querySelectorAll('.rate__btn')[Number(e.key) - 1];

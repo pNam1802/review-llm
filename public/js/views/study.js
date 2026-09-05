@@ -5,6 +5,7 @@ import {
 import { LEVELS, LEVEL_LABEL, AXES, nextLevel, scoreFromRubric, ratingFromScore } from '../rubric.js';
 import { recordGrade, pendingDrills, buildDrill } from '../drills.js';
 import { renderDrillCard } from './drill.js';
+import { toggleNotes } from './notes.js';
 import { md } from '../md.js';
 import { scoreRing, esc, toast, relTime, fmtDuration } from '../ui.js';
 
@@ -119,6 +120,7 @@ export function renderStudy(go, opts = {}) {
   /* ------------------------------------------------------------ thẻ học */
   function card() {
     const q = current();
+    state.ui.qid = q.id;   // để sổ tay gắn ghi chú vào đúng câu
     const c = getCard(q.id);
     const el = document.createElement('div');
     el.className = 'study fade-in';
@@ -276,6 +278,7 @@ export function renderStudy(go, opts = {}) {
         <p style="font-size:16px;margin:6px 0 12px">${esc(g.next_question)}</p>
         <div class="row">
           <button class="btn btn--sm" data-act="ask-next">Hỏi trợ giảng câu này</button>
+          <button class="btn btn--sm btn--ghost" data-act="note">📝 Ghi vào sổ tay</button>
           <span class="tiny muted">Không bắt buộc — nhưng trả lời được là bạn lên một mức.</span>
         </div>
       </section>` : ''}
@@ -384,6 +387,7 @@ export function renderStudy(go, opts = {}) {
         case 'hint': hintLevel = Math.min(2, hintLevel + 1); return paint();
         case 'blank': return submit('');
         case 'submit': return submit(el.querySelector('#ans')?.value ?? '');
+        case 'note': return toggleNotes(true, { qid: q.id });
         case 'jump': return go('question', { id: Number(t.dataset.id) });
         case 'ask-next': {
           const box = el.querySelector('#coachBox');

@@ -22,12 +22,20 @@
       <button class="btn btn--ghost btn--sm" id="themeBtn" title="Đổi giao diện sáng/tối (phím T)">
         <span class="ico" aria-hidden="true">◐</span><span>Giao diện</span>
       </button>
+      <button class="btn btn--ghost btn--sm" id="notesBtn" aria-controls="notes" aria-expanded="false"
+              title="Sổ tay của bạn (phím N)">
+        <span class="ico" aria-hidden="true">📝</span><span>Sổ tay</span>
+      </button>
       <div class="nav__status" id="apiStatus"></div>
     </div>
   </aside>
 
   <main class="main" id="main" tabindex="-1"></main>
 </div>
+
+<button class="notes-fab" id="notesFab" title="Mở sổ tay (phím N)" aria-label="Mở sổ tay">📝</button>
+<div class="notes-backdrop" id="notesBackdrop"></div>
+<aside class="notes" id="notes" aria-hidden="true" aria-label="Sổ tay"></aside>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
